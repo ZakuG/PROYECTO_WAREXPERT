@@ -49,15 +49,24 @@ class ProductoModelo:
         except Exception as e:
             self.conn.rollback()
             raise e
-    def actualizar_producto(self, id_producto, id_marca, id_modelo, cilindrada, año_inicio, año_fin, producto, descripcion, codigo, precio, costo, largo, ancho, altura):
+    def actualizar_producto(self, id_producto, producto, descripcion, codigo, precio, costo, largo, ancho, altura):
         try:
-            self.cursor.execute("Update productos set nombre=%s, descripcion=%s, año0=%s, año1=%s, marca=%s, modelo=%s, cilindrada=%s, codigo_producto=%s where id_producto = %s", (producto, descripcion, año_inicio, año_fin, id_marca, id_modelo, cilindrada, codigo, id_producto))
+            self.cursor.execute("Update productos set nombre=%s, descripcion=%s, codigo_producto=%s where id_producto = %s", (producto, descripcion, codigo, id_producto))
             self.cursor.execute("update precios set precio_cliente=%s, costo_empresa=%s where id_producto=%s", (precio, costo, id_producto))
             self.cursor.execute("update dimensiones set largo=%s, ancho=%s, altura=%s where id_producto=%s", (largo, ancho, altura, id_producto))
             self.conn.commit()
         except Exception as e:
             self.conn.rollback()
             raise e
+        
+    def actualizar_compatibilidad(self, marca, modelo, cilindrada, año0, año1, id):
+        try:
+            self.cursor.execute("Update compatibilidad_producto set marca=%s, modelo=%s, cilindrada=%s ,año0=%s, año1=%s where id_compatibilidad_producto = %s", (marca, modelo, cilindrada, año0, año1, id))
+            self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            raise e
+
     def agregar_marca(self, nombre, imagenes):
         try:
             if not imagenes:
@@ -348,7 +357,7 @@ class ProductoModelo:
     def obtener_compatibilidad_actualizar(self, id_producto):
         consulta = """
             SELECT 
-                m.id_marca, m.nombre, mo.id_modelo, mo.nombre, cp.cilindrada, cp.año0, cp.año1
+                m.id_marca, m.nombre, mo.id_modelo, mo.nombre, cp.cilindrada, cp.año0, cp.año1, cp.id_compatibilidad_producto
             FROM compatibilidad_producto as cp
             LEFT JOIN MARCAS AS M ON M.ID_MARCA = cP.MARCA
             LEFT JOIN MODELO AS MO ON MO.ID_MODELO = cP.MODELO
@@ -916,6 +925,10 @@ class ProductoVista:
             modelo1_var_list = []
             marca1_entry_list = []
             modelo1_entry_list = []
+            cilindrada_entry_list = []
+            año_1_entry_list = []
+            año_2_entry_list = []
+            id_compatibilidad_list = []
             def cargar_marca1_combobox():
                 # Obtener todas las marcas de la base de datos
                 marcas = self.controlador.obtener_marcas()  # Devuelve una lista de tuplas (id_marca, nombre)
@@ -977,7 +990,37 @@ class ProductoVista:
             editar_window.resizable(False, False)
             editar_window.attributes("-fullscreen", False)
 
-            producto_frame = Frame(editar_window)
+            editar_window.resizable(False, False)
+            editar_window.attributes("-fullscreen", False)
+
+            # Canvas para scroll
+            canvas = Canvas(editar_window)
+            canvas.pack(side="left", fill="both", expand=True)
+
+            # Scrollbar
+            scrollbar = Scrollbar(editar_window, orient="vertical", command=canvas.yview)
+            scrollbar.pack(side="right", fill="y")
+            canvas.configure(yscrollcommand=scrollbar.set)
+
+            # Frame interno para contenido
+            contenidoa_frame = Frame(canvas)
+
+            # Configuración del canvas para el frame interno
+            canvas.create_window((0, 0), window=contenidoa_frame, anchor="nw")
+
+            # Actualizar el scroll region
+            def actualizar_scroll_region1(event):
+                canvas.configure(scrollregion=canvas.bbox("all"))
+
+            contenidoa_frame.bind("<Configure>", actualizar_scroll_region1)
+
+            # Vincular la rueda del mouse al canvas
+            def on_mousewheel1(event):
+                canvas.yview_scroll(-1 * (event.delta // 120), "units")
+
+            editar_window.bind_all("<MouseWheel>", on_mousewheel1)
+
+            producto_frame = Frame(contenidoa_frame)
             producto_frame.pack(fill="x", padx=10, pady=10)
 
             ttk.Label(producto_frame, text="Producto:", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -995,7 +1038,7 @@ class ProductoVista:
             codigo1_entry.insert(0, producto[0])
             codigo1_entry.grid(row=2, column=1, padx=5, pady=5)
 
-            precios_frame = Frame(editar_window)
+            precios_frame = Frame(contenidoa_frame)
             precios_frame.pack(fill="x", padx=10, pady=10)
 
             ttk.Label(precios_frame, text="Precio Cliente:", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -1008,7 +1051,7 @@ class ProductoVista:
             costo1_entry.insert(0, producto[11])
             costo1_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
-            dimensiones_frame = Frame(editar_window)
+            dimensiones_frame = Frame(contenidoa_frame)
             dimensiones_frame.pack(fill="x", padx=10, pady=10)
 
             ttk.Label(dimensiones_frame, text="Largo (cm):", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -1027,14 +1070,14 @@ class ProductoVista:
             altura1_entry.grid(row=2, column=1, padx=5, pady=5)
             if compatibilidad:
                 x = 1
-                marcas_frame = Frame(editar_window)
+                marcas_frame = Frame(contenidoa_frame)
                 marcas_frame.pack(fill="x", padx=10, pady=10)
                 Label(marcas_frame, text="Compatible con:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
                 print("AAA")
                 i = 0
                 for compatible in compatibilidad:
                     # Crear variables independientes para cada iteración
-                    
+                    id_compatibilidad_list.append(compatible[7])
                     marca1_var = StringVar()
                     modelo1_var = StringVar()
 
@@ -1068,19 +1111,19 @@ class ProductoVista:
                     cilindrada1_entry = ttk.Entry(marcas_frame)
                     cilindrada1_entry.insert(0, compatible[4] if compatible[4] is not None else "")
                     cilindrada1_entry.grid(row=0 + x, column=5, padx=5, pady=5)
+                    cilindrada_entry_list.append(cilindrada1_entry)
 
                     ttk.Label(marcas_frame, text="Año 1:", font=("Arial", 10, "bold")).grid(row=1 + x, column=0, padx=5, pady=5, sticky="w")
                     año11_entry = ttk.Entry(marcas_frame)
                     año11_entry.insert(0, compatible[5] if compatible[5] is not None else "")
                     año11_entry.grid(row=1 + x, column=1, padx=5, pady=5)
+                    año_1_entry_list.append(año11_entry)
 
                     ttk.Label(marcas_frame, text="Año 2:", font=("Arial", 10, "bold")).grid(row=1 + x, column=2, padx=5, pady=5, sticky="w")
                     año21_entry = ttk.Entry(marcas_frame)
                     año21_entry.insert(0, compatible[6] if compatible[6] is not None else "")
                     año21_entry.grid(row=1 + x, column=3, padx=5, pady=5)
-                    print("Aaa")
-                    print(marca1_entry_list)
-                    print(modelo1_entry_list)
+                    año_2_entry_list.append(año21_entry)
                     
                     # Configurar las marcas y modelos
                     cargar_marca1_combobox()
@@ -1089,37 +1132,64 @@ class ProductoVista:
                     
                     i += 1
                     x += 2
-                    
+
                     
             def actualizar_producto_en_base():
                 # Obtener los valores del formulario
+                i = 0
                 id_producto = producto[9]
-                
-                marca_seleccionada = marca1_var.get()
-                if marca_seleccionada == "No disponible - No disponible":
-                    marca_seleccionada = None
-                else:
-                    marca_seleccionada = int(marca_seleccionada.split(" - ")[0]) if marca_seleccionada else None  # Obtiene el ID de la marca
-                modelo_seleccionado = modelo1_var.get()
-                if modelo_seleccionado == "No disponible - No disponible":
-                    modelo_seleccionado = None
-                else:
-                    modelo_seleccionado = int(modelo_seleccionado.split(" - ")[0]) if modelo_seleccionado else None # Obtiene el ID del modelo
-                cilindrada = cilindrada1_entry.get()
-                if cilindrada == "No disponible":
-                    cilindrada = None
-                else:
-                    cilindrada = float(cilindrada)
-                año1 = año11_entry.get()
-                año2 = año21_entry.get()
-                if año1 > año2:
-                    return messagebox.showwarning("Advertencia", "El año 1 debe ser menor al año 2.")
-                if año1 == "No disponible" and año2 == "No disponible":
-                    año1, año2 = None, None  # Ambos vacíos
-                elif año1 == "No disponible" or año1 == "":
-                    año1 = año2  # Si falta año1, usar año2
-                elif año2 == "No disponible" or año2 == "":
-                    año2 = año1  # Si falta año2, usar año1
+                for compat in id_compatibilidad_list:
+                    marca_seleccionada = marca1_entry_list[i].get()
+                    
+                    # Manejo de la cilindrada
+                    cilindrada = cilindrada_entry_list[i].get()
+                    cilindrada = float(cilindrada) if cilindrada and cilindrada not in ["", None] else None
+
+                    # Manejo de los años
+                    try:
+                        año1 = int(año_1_entry_list[i].get()) if año_1_entry_list[i].get() not in ["", "No disponible"] else None
+                    except ValueError:
+                        año1 = None
+
+                    try:
+                        año2 = int(año_2_entry_list[i].get()) if año_2_entry_list[i].get() not in ["", "No disponible"] else None
+                    except ValueError:
+                        año2 = None
+
+                    # Si ambos años están vacíos, asignarles None
+                    if año1 == "" and año2 == "":
+                        año1, año2 = None, None  # Ambos vacíos
+                    elif año1 is None and año2 is not None:
+                        año1 = año2  # Si falta año1, usar año2
+                    elif año2 is None and año1 is not None:
+                        año2 = año1  # Si falta año2, usar año1
+                    elif año1 is not None and año2 is not None and año1 > año2:
+                        return messagebox.showwarning("Advertencia", "El año 1 debe ser menor al año 2.")
+                    
+                    # Manejo de la marca seleccionada
+                    if marca_seleccionada and marca_seleccionada != "":
+                        marca_seleccionada = int(marca_seleccionada.split(" - ")[0]) 
+                    else:
+                        marca_seleccionada = None
+
+                    # Manejo del modelo seleccionado
+                    modelo_seleccionado = modelo1_entry_list[i].get()
+                    if modelo_seleccionado and modelo_seleccionado != "":
+                        modelo_seleccionado = int(modelo_seleccionado.split(" - ")[0]) 
+                    else:
+                        modelo_seleccionado = None
+
+                    # Actualización de compatibilidad
+                    self.controlador.actualizar_compatibilidad(
+                        marca_seleccionada if marca_seleccionada else None,
+                        modelo_seleccionado if modelo_seleccionado else None,
+                        cilindrada if cilindrada else None,
+                        año1 if año1 else None,
+                        año2 if año2 else None,
+                        id_compatibilidad_list[i]
+                    )
+                    i += 1
+
                 if not producto1_entry.get():
                     messagebox.showwarning("Advertencia", "Debe agregar un nombre al producto.")
                     return
@@ -1156,11 +1226,6 @@ class ProductoVista:
                 # Intentar actualizar el producto
                 datos_actualizados = {
                     "id_producto": id_producto,
-                    "id_marca": (marca_seleccionada) if marca_seleccionada else None,
-                    "id_modelo": (modelo_seleccionado) if modelo_seleccionado else None,
-                    "cilindrada": cilindrada if cilindrada else None,
-                    "año_inicio": año1 if año1 else None,
-                    "año_fin": año2 if año2 else None,
                     "producto": producto_nombre,
                     "descripcion": descripcion if descripcion else None,
                     "codigo": codigo,
@@ -1189,7 +1254,7 @@ class ProductoVista:
                     None
             # Llamar a las funciones de inicialización
             
-            boton_frame = Frame(editar_window)
+            boton_frame = Frame(contenidoa_frame)
             boton_frame.pack(fill="x", padx=3, pady=10)
             ttk.Button(boton_frame, text="Editar Producto", command=actualizar_producto_en_base).grid(row=0, column=4)
 
@@ -2056,8 +2121,7 @@ class ProductoControlador:
     def actualizar_producto(self, datos):
         try:
             self.modelo.actualizar_producto(
-                datos["id_producto"], datos["id_marca"], datos["id_modelo"],
-                datos["cilindrada"], datos["año_inicio"], datos["año_fin"],
+                datos["id_producto"],
                 datos["producto"], datos["descripcion"], datos["codigo"],
                 datos["precio"], datos["costo"],
                 datos["largo"], datos["ancho"], datos["altura"]
@@ -2065,8 +2129,15 @@ class ProductoControlador:
             messagebox.showinfo("Éxito", "Producto actualizado correctamente.")
 
         except Exception as e:
-            messagebox.showerror("Error", f"No se pudo registrar el producto: {e}")
+            messagebox.showerror("Error", f"No se pudo actualizar el producto: {e}")
 
+    def actualizar_compatibilidad(self, marca, modelo, cilindrada, año0, año1, id):
+        try:
+            self.modelo.actualizar_compatibilidad(
+                marca, modelo, cilindrada, año0, año1, id
+            )
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo registrar el producto: {e}")
 
     def guardar_marcas(self, datos):
         try:
