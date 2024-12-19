@@ -911,7 +911,11 @@ class ProductoVista:
                 None
 
         def actualizar_producto():
-            
+
+            marca1_var_list = []
+            modelo1_var_list = []
+            marca1_entry_list = []
+            modelo1_entry_list = []
             def cargar_marca1_combobox():
                 # Obtener todas las marcas de la base de datos
                 marcas = self.controlador.obtener_marcas()  # Devuelve una lista de tuplas (id_marca, nombre)
@@ -926,24 +930,47 @@ class ProductoVista:
                     marca1_entry["values"] = []
                     messagebox.showwarning("Advertencia", "No se encontraron marcas registradas.")
                 
-            def actualizar_modelos1(modelo1_entry, marca1_var, event=None):
-                modelo1_var.set("")
-                marca_seleccionada = marca1_var.get()
+            def actualizar_modelos1(i, event=None):
+                # Limpiar el valor del modelo al actualizar la marca
+                modelo1_var_list[i].set("")
+                
+                # Obtener la marca seleccionada
+                marca_seleccionada = marca1_var_list[i].get()
                 if not marca_seleccionada:
                     return
 
                 # Obtener el ID de la marca seleccionada
                 id_marca = int(marca_seleccionada.split(" - ")[0])
 
-                # Obtener modelos asociados a la marca seleccionada
+                # Obtener los modelos asociados a la marca seleccionada
                 modelos = self.controlador.obtener_modelos(id_marca)
                 if modelos:
-                    modelo1_entry["values"] = [f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos]
-                    modelo1_entry.state(["!disabled"])
+                    modelo1_entry_list[i]["values"] = [f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos]
+                    modelo1_entry_list[i].state(["!disabled"])
                 else:
-                    modelo1_entry["values"] = []
-                    modelo1_entry.state(["disabled"])
+                    modelo1_entry_list[i]["values"] = []
+                    modelo1_entry_list[i].state(["disabled"])
+            def actualizar_modelos2(i, event=None):
+                # Limpiar el valor del modelo al actualizar la marca
+                modelo1_var_list[i].set(modelo1_var_list[i].get())
+                
+                # Obtener la marca seleccionada
+                marca_seleccionada = marca1_var_list[i].get()
+                if not marca_seleccionada:
+                    return
 
+                # Obtener el ID de la marca seleccionada
+                id_marca = int(marca_seleccionada.split(" - ")[0])
+
+                # Obtener los modelos asociados a la marca seleccionada
+                modelos = self.controlador.obtener_modelos(id_marca)
+                if modelos:
+                    modelo1_entry_list[i]["values"] = [f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos]
+                    modelo1_entry_list[i].state(["!disabled"])
+                else:
+                    modelo1_entry_list[i]["values"] = []
+                    modelo1_entry_list[i].state(["disabled"])
+                         
             editar_window = Toplevel(self.root)
             editar_window.title(f"Editar Producto - {producto[1]} {producto[2]} {producto[3]}")
             editar_window.geometry("800x600")
@@ -1004,49 +1031,65 @@ class ProductoVista:
                 marcas_frame = Frame(editar_window)
                 marcas_frame.pack(fill="x", padx=10, pady=10)
                 Label(marcas_frame, text="Compatible con:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
-
+                
+                i = 0
                 for compatible in compatibilidad:
                     # Crear variables independientes para cada iteración
                     
                     marca1_var = StringVar()
                     modelo1_var = StringVar()
 
+                    marca = f"{compatible[0]} - {compatible[1]}" if compatible[1] is not None else ""
+                    modelo = f"{compatible[2]} - {compatible[3]}" if compatible[3] is not None else ""
+
+
+                    # Inicializar valores del Combobox
+                    marca1_var.set(marca)
+                    modelo1_var.set(modelo)
+
+                    marca1_var_list.append(marca1_var)
+                    modelo1_var_list.append(modelo1_var)
+
                     # Etiqueta y Combobox para Marca
                     ttk.Label(marcas_frame, text="Marca:", font=("Arial", 10, "bold")).grid(row=0 + x, column=0, padx=5, pady=5, sticky="w")
-                    marca1_entry = ttk.Combobox(marcas_frame, state="readonly", textvariable=marca1_var)
+                    marca1_entry = ttk.Combobox(marcas_frame, state="readonly", textvariable=marca1_var_list[i])
                     marca1_entry.grid(row=0 + x, column=1, padx=5, pady=5)
+                    
+                    marca1_entry_list.append(marca1_entry)
 
                     # Etiqueta y Combobox para Modelo
                     ttk.Label(marcas_frame, text="Modelo:", font=("Arial", 10, "bold")).grid(row=0 + x, column=2, padx=5, pady=5, sticky="w")
-                    modelo1_entry = ttk.Combobox(marcas_frame, state="readonly", textvariable=modelo1_var)
+                    modelo1_entry = ttk.Combobox(marcas_frame, state="readonly", textvariable=modelo1_var_list[i])
                     modelo1_entry.grid(row=0 + x, column=3, padx=5, pady=5)
 
+                    modelo1_entry_list.append(modelo1_entry)
+
                     # Campos adicionales
-                    ttk.Label(marcas_frame, text="Cilindrada:", font=("Arial", 10, "bold")).grid(row=2 + x, column=0, padx=5, pady=5, sticky="w")
+                    ttk.Label(marcas_frame, text="Cilindrada:", font=("Arial", 10, "bold")).grid(row=0 + x, column=4, padx=5, pady=5, sticky="w")
                     cilindrada1_entry = ttk.Entry(marcas_frame)
-                    cilindrada1_entry.insert(0, compatible[4])
-                    cilindrada1_entry.grid(row=2 + x, column=1, padx=5, pady=5)
+                    cilindrada1_entry.insert(0, compatible[4] if compatible[4] is not None else "")
+                    cilindrada1_entry.grid(row=0 + x, column=5, padx=5, pady=5)
 
                     ttk.Label(marcas_frame, text="Año 1:", font=("Arial", 10, "bold")).grid(row=1 + x, column=0, padx=5, pady=5, sticky="w")
                     año11_entry = ttk.Entry(marcas_frame)
-                    año11_entry.insert(0, compatible[5])
+                    año11_entry.insert(0, compatible[5] if compatible[5] is not None else "")
                     año11_entry.grid(row=1 + x, column=1, padx=5, pady=5)
 
                     ttk.Label(marcas_frame, text="Año 2:", font=("Arial", 10, "bold")).grid(row=1 + x, column=2, padx=5, pady=5, sticky="w")
                     año21_entry = ttk.Entry(marcas_frame)
-                    año21_entry.insert(0, compatible[6])
+                    año21_entry.insert(0, compatible[6] if compatible[6] is not None else "")
                     año21_entry.grid(row=1 + x, column=3, padx=5, pady=5)
 
-                    # Inicializar valores del Combobox
-                    marca1_var.set(f"{compatible[0]} - {compatible[1]}")
-                    modelo1_var.set(f"{compatible[2]} - {compatible[3]}")
+                    
 
                     # Configurar las marcas y modelos
                     cargar_marca1_combobox()
-                    marca1_entry.bind("<<ComboboxSelected>>", lambda event, modelo1_entry=modelo1_entry, marca1_var=marca1_var: actualizar_modelos1(modelo1_entry, marca1_var))
-
-                    x += 3
-
+                    actualizar_modelos2(i)
+                    marca1_entry.bind("<<ComboboxSelected>>", lambda event, i=i: actualizar_modelos1(i, event))
+                    
+                    i += 1
+                    x += 2
+                    
             
             def actualizar_producto_en_base():
                 # Obtener los valores del formulario
@@ -1140,7 +1183,6 @@ class ProductoVista:
                     self.buscar_producto_marca()
                 except Exception:
                     None
-
                 try:
                     self.buscar_product()
                 except Exception:
