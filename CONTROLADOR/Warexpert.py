@@ -294,7 +294,7 @@ class ProductoModelo:
             return(None)
     def buscar_detalles_producto(self, id_producto, id_compatibilidad):
         if id_compatibilidad != "No disponible":
-            print("a")
+
             consulta = """
                 SELECT 
                     p.nombre, p.descripcion, p.codigo_producto,
@@ -314,7 +314,7 @@ class ProductoModelo:
             self.cursor.execute(consulta, (id_producto, id_compatibilidad, ))
             return self.cursor.fetchall()
         else:
-            print("aaa")
+
             consulta = """
                 SELECT 
                     p.nombre, p.descripcion, p.codigo_producto,
@@ -1026,12 +1026,11 @@ class ProductoVista:
             altura1_entry.insert(0, producto[14])
             altura1_entry.grid(row=2, column=1, padx=5, pady=5)
             if compatibilidad:
-                print(compatibilidad)
                 x = 1
                 marcas_frame = Frame(editar_window)
                 marcas_frame.pack(fill="x", padx=10, pady=10)
                 Label(marcas_frame, text="Compatible con:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
-                
+                print("AAA")
                 i = 0
                 for compatible in compatibilidad:
                     # Crear variables independientes para cada iteración
@@ -1079,9 +1078,10 @@ class ProductoVista:
                     año21_entry = ttk.Entry(marcas_frame)
                     año21_entry.insert(0, compatible[6] if compatible[6] is not None else "")
                     año21_entry.grid(row=1 + x, column=3, padx=5, pady=5)
-
+                    print("Aaa")
+                    print(marca1_entry_list)
+                    print(modelo1_entry_list)
                     
-
                     # Configurar las marcas y modelos
                     cargar_marca1_combobox()
                     actualizar_modelos2(i)
@@ -1090,7 +1090,7 @@ class ProductoVista:
                     i += 1
                     x += 2
                     
-            
+                    
             def actualizar_producto_en_base():
                 # Obtener los valores del formulario
                 id_producto = producto[9]
