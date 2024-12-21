@@ -1,6 +1,7 @@
 from tkinter import Toplevel, Label, Frame, PhotoImage, filedialog, messagebox
 from tkinter import ttk
 from tkinter import *
+import tkinter as tk 
 import os
 from PIL import Image, ImageTk  # Para manejar las imágenes correctamente
 import mysql.connector
@@ -403,6 +404,7 @@ class ProductoModelo:
             raise e
 
     def buscar_product_carro(self, id_producto, compatibilidad):
+        
         if compatibilidad != "No disponible":
             query = """
             SELECT p.codigo_producto, p.nombre, m.nombre AS marca, mo.nombre AS modelo, 
@@ -414,7 +416,7 @@ class ProductoModelo:
             JOIN Precios pr ON p.id_producto = pr.id_producto
             WHERE p.id_producto = %s and cp.id_compatibilidad_producto = %s
             """
-            self.cursor.execute(query, (id_producto, compatibilidad[0],))
+            self.cursor.execute(query, (id_producto, compatibilidad,))
             result = self.cursor.fetchone()
             
             if result:
@@ -584,58 +586,63 @@ class ProductoVista:
     def __init__(self, root, controlador):
         self.root = root
         self.controlador = controlador
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("Treeview.Heading", font=("Arial", 10, "bold"), background="yellow", foreground="black")
+        style.map("Treeview.Heading", background=[("active", "yellow2")], foreground=[("active", "black")])
+        style.configure("Custom.TFrame", background="#F5F5DC")
+        style.configure("TLabel", font=("Arial", 10, "bold"), background="beige")
+        style.configure("TEntry", font=("Arial", 10, "bold"), bg="beige")
+        style.configure("TCombobox", font=("Arial", 10, "bold"), bg="beige")
+        style.configure("TButton", font=("Arial", 10, "bold"), bg="beige")
         
+
         # Pestañas
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill="both", expand=True)
 
         # Pestaña de registro
-        self.tab_registro = ttk.Frame(self.notebook)
+        self.tab_registro = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_registro, text="Registrar Producto")
         self.crear_pestaña_registro()
 
         # Pestaña asignar ubicacion
-        self.tab_ubicacion = ttk.Frame(self.notebook)
+        self.tab_ubicacion = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_ubicacion, text="Asignar Ubicacion")
         self.crear_pestaña_ubicacion()
 
         # Pestaña de búsqueda
-        self.tab_busqueda = ttk.Frame(self.notebook)
+        self.tab_busqueda = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_busqueda, text="Buscar Producto")
         self.crear_pestaña_busqueda()
     	
         # Pestaña de búsqueda por marca
-        self.tab_busqueda_marca = ttk.Frame(self.notebook)
+        self.tab_busqueda_marca = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_busqueda_marca, text="Buscar Producto por Modelo")
         self.crear_pestaña_busqueda_marca()
 
         # Pestaña de marca
-        self.tab_marca = ttk.Frame(self.notebook)
+        self.tab_marca = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_marca, text="Registrar Marca")
         self.crear_pestaña_marca()
 
         # Pestaña Modelo
-        self.tab_modelo = ttk.Frame(self.notebook)
+        self.tab_modelo = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_modelo, text="Registrar Modelo")
         self.crear_pestaña_modelo()
 
         #pestaña carro
-        self.tab_carro = ttk.Frame(self.notebook)
+        self.tab_carro = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_carro, text="Carro")
         self.crear_pestaña_carro()
         self.carrito = []  
         self.total_final = 0.0
 
-        style = ttk.Style()
-        style.configure("TLabel", font=("Arial", 10, "bold"))
-        style.configure("TEntry", font=("Arial", 10, "bold"))
-        style.configure("TCombobox", font=("Arial", 10, "bold"))
-        style.configure("TButton", font=("Arial", 10, "bold"))
-
+        
 
     def crear_pestaña_registro(self):
         self.id=[]
-        datos_frame = Frame(self.tab_registro)
+        datos_frame = Frame(self.tab_registro, bg="beige")
         datos_frame.pack(fill="x", padx=10, pady=10)
         # Campos de entrada
         ttk.Label(datos_frame, text="Nombre:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -673,15 +680,20 @@ class ProductoVista:
 
         ttk.Label(datos_frame, text="Imágenes:").grid(row=8, column=0, padx=5, pady=5, sticky="w")
         self.imagenes_list = []
-        self.imagenes_button = ttk.Button(datos_frame, text="Cargar Imágenes", command=self.cargar_imagenes)
+        self.imagenes_button = tk.Button(datos_frame, text="Cargar Imágenes", bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                                        activeforeground="beige", font=("Arial", 10, "bold"), command=self.cargar_imagenes)
         self.imagenes_button.grid(row=8, column=1, padx=5, pady=5, sticky="w")
 
-        # Botón para guardar
-        self.guardar_button = ttk.Button(datos_frame, text="Guardar", command=self.guardar_producto)
-        self.guardar_button.grid(row=9, column=0, columnspan=2, pady=10)
+        buttona_frame = Frame(self.tab_registro, bg="beige")
+        buttona_frame.pack(fill="x")
 
-        self.compatibilidad_frame = Frame(self.tab_registro)
-        self.compatibilidad_frame.pack(fill="x", padx=10, pady=10)
+        # Botón para guardar
+        self.guardar_button = tk.Button(buttona_frame, text="Guardar", bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"), command=self.guardar_producto)
+        self.guardar_button.grid(row=0, column=0, columnspan=2, padx=80, pady=10)
+
+        self.compatibilidad_frame = Frame(self.tab_registro, bg="beige")
+        self.compatibilidad_frame.pack(fill="x", padx=10)
 
     def cargar_marca_compatibilicad_combobox(self):
         # Obtener marcas desde la base de datos
@@ -799,11 +811,11 @@ class ProductoVista:
         self.compatibilidad_cilindrada_entry = ttk.Entry(self.compatibilidad_frame)
         self.compatibilidad_cilindrada_entry.grid(row=13, column=1, padx=5, pady=5, sticky="w")
 
-        self.agregar_compatibilidad_button = ttk.Button(
-            self.compatibilidad_frame, 
-            text="Agregar Compatibilidad", 
-            command=self.agregar_compatibilidad
-        )
+        self.agregar_compatibilidad_button = tk.Button(self.compatibilidad_frame, text="Agregar Compatibilidad",
+                                                        bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+                                                        activeforeground="white",  font=("Arial", 10, "bold"),
+                                                        command=self.agregar_compatibilidad
+                                                        )
         self.agregar_compatibilidad_button.grid(row=14, column=0, columnspan=4, pady=10, sticky="w")
 
 
@@ -841,7 +853,8 @@ class ProductoVista:
         self.busqueda_entry_ubicacion = ttk.Entry(self.tab_ubicacion, width=65)
         self.busqueda_entry_ubicacion.pack(padx=5, pady=5)
 
-        self.buscar_button = ttk.Button(self.tab_ubicacion, text="Buscar", command=self.buscar_product)
+        self.buscar_button = tk.Button(self.tab_ubicacion, text="Buscar", bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"), command=self.buscar_product, width=15)
         self.buscar_button.pack(pady=5)
 
         # Frame para Treeview y Scrollbars
@@ -907,7 +920,7 @@ class ProductoVista:
         id_producto = producto[9]
         
         ubicacion_window = Toplevel(self.root)
-        ubicacion_window.title(f"Asignar Ubicación - {producto[1]} {producto[2]} {producto[3]}")
+        ubicacion_window.title(f"Asignar Ubicación - {producto[3]}")
         ubicacion_window.geometry("400x300")
 
         ubicacion_window.resizable(False, False)
@@ -971,7 +984,7 @@ class ProductoVista:
             id_compatibilidad_list = []
 
             editar_window = Toplevel(self.root)
-            editar_window.title(f"Editar Producto - {producto[1]} {producto[2]} {producto[3]}")
+            editar_window.title(f"Editar Producto - {producto[3]}")
             editar_window.geometry("800x600")
             editar_window.resizable(False, False)
             editar_window.attributes("-fullscreen", False)
@@ -1010,17 +1023,17 @@ class ProductoVista:
             producto_frame.pack(fill="x", padx=10, pady=10)
 
             ttk.Label(producto_frame, text="Producto:", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
-            producto1_entry = ttk.Entry(producto_frame)
+            producto1_entry = ttk.Entry(producto_frame, width=75)
             producto1_entry.insert(0, producto[3])
             producto1_entry.grid(row=0, column=1, padx=5, pady=5)
 
             ttk.Label(producto_frame, text="Descripción:", font=("Arial", 10, "bold")).grid(row=1, column=0, padx=5, pady=5, sticky="w")
-            descripcion1_entry = ttk.Entry(producto_frame)
+            descripcion1_entry = ttk.Entry(producto_frame, width=75)
             descripcion1_entry.insert(0, producto[4])
             descripcion1_entry.grid(row=1, column=1, padx=5, pady=5)
 
             ttk.Label(producto_frame, text="Código Producto:", font=("Arial", 10, "bold")).grid(row=2, column=0, padx=5, pady=5, sticky="w")
-            codigo1_entry = ttk.Entry(producto_frame)
+            codigo1_entry = ttk.Entry(producto_frame, width=75)
             codigo1_entry.insert(0, producto[0])
             codigo1_entry.grid(row=2, column=1, padx=5, pady=5)
 
@@ -1400,7 +1413,7 @@ class ProductoVista:
 
 
             eliminar_window = Toplevel(self.root)
-            eliminar_window.title(f"Eliminar producto - {producto[1]} {producto[2]} {producto[3]}")
+            eliminar_window.title(f"Eliminar producto - {producto[3]}")
             eliminar_window.geometry("640x90")  # Ajustar tamaño de la ventana
             eliminar_window.resizable(False, False)
             eliminar_window.attributes("-fullscreen", False)
@@ -1428,7 +1441,8 @@ class ProductoVista:
         self.busqueda_entry = ttk.Entry(self.tab_busqueda, width=65)
         self.busqueda_entry.pack(padx=5, pady=5)
 
-        self.buscar_button = ttk.Button(self.tab_busqueda, text="Buscar", command=self.buscar_producto)
+        self.buscar_button = tk.Button(self.tab_busqueda, text="Buscar", command=self.buscar_producto, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
         self.buscar_button.pack(pady=5)
 
         # Frame para Treeview y Scrollbars
@@ -1499,34 +1513,43 @@ class ProductoVista:
 
     def crear_pestaña_busqueda_marca(self):
         # Campo de búsqueda
-        ttk.Label(self.tab_busqueda_marca, text="Buscar Producto:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        tree_frame_busca_titulo = tk.Frame(self.tab_busqueda_marca, bg="beige")
+        tree_frame_busca_titulo.grid(row=0, column=0, columnspan=2)
+        ttk.Label(tree_frame_busca_titulo, text="Buscar Producto:").grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+
+        tree_frame_buscar = tk.Frame(self.tab_busqueda_marca, bg="beige")
+        tree_frame_buscar.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
 
         # Combobox de marcas
-        ttk.Label(self.tab_busqueda_marca, text="Marca:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.marcas2_combobox = ttk.Combobox(self.tab_busqueda_marca, state="readonly")
+        ttk.Label(tree_frame_buscar, text="Marca:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.marcas2_combobox = ttk.Combobox(tree_frame_buscar, state="readonly")
         self.marcas2_combobox.grid(row=1, column=1, padx=5, pady=5)
         self.cargar_marca_combobox2()
 
         # Combobox de modelos
-        ttk.Label(self.tab_busqueda_marca, text="Modelo:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        self.modelo2_combobox = ttk.Combobox(self.tab_busqueda_marca, state="readonly")
+        ttk.Label(tree_frame_buscar, text="Modelo:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.modelo2_combobox = ttk.Combobox(tree_frame_buscar, state="readonly")
         self.modelo2_combobox.grid(row=2, column=1, padx=5, pady=5)
         self.modelo2_combobox.state(["disabled"])
         self.marcas2_combobox.bind("<<ComboboxSelected>>", self.actualizar_modelos2)
 
         # Campo de entrada para año
-        ttk.Label(self.tab_busqueda_marca, text="Año:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        self.año_marca_entry = ttk.Entry(self.tab_busqueda_marca)
+        ttk.Label(tree_frame_buscar, text="Año:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.año_marca_entry = ttk.Entry(tree_frame_buscar)
         self.año_marca_entry.grid(row=3, column=1, padx=5, pady=5)
 
         # Campo de entrada para cilindrada
-        ttk.Label(self.tab_busqueda_marca, text="Cilindrada:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        self.cilindrada_marca_entry = ttk.Entry(self.tab_busqueda_marca)
+        ttk.Label(tree_frame_buscar, text="Cilindrada:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        self.cilindrada_marca_entry = ttk.Entry(tree_frame_buscar)
         self.cilindrada_marca_entry.grid(row=4, column=1, padx=5, pady=5)
 
+        tree_frame_busca_bot = tk.Frame(self.tab_busqueda_marca, bg="beige")
+        tree_frame_busca_bot.grid(row=2, column=0, columnspan=2)
+
         # Botón de búsqueda
-        self.buscar_marca_button = ttk.Button(self.tab_busqueda_marca, text="Buscar", command=self.buscar_producto_marca)
-        self.buscar_marca_button.grid(row=5, column=1, padx=5, pady=10)
+        self.buscar_marca_button = tk.Button(tree_frame_busca_bot, text="Buscar", command=self.buscar_producto_marca, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
+        self.buscar_marca_button.grid(row=0, column=0, padx=5, pady=10)
 
         # Frame para Treeview y Scrollbars
         tree_frame_marca = ttk.Frame(self.tab_busqueda_marca)
@@ -1877,17 +1900,19 @@ class ProductoVista:
 
     def crear_pestaña_marca(self):
         # Campos de entrada
-        ttk.Label(self.tab_marca, text="Nombre:").grid(row=0, column=0, padx=5, pady=5)
+        ttk.Label(self.tab_marca, text="Nombre:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.nombre_marca_entry = ttk.Entry(self.tab_marca)
-        self.nombre_marca_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.nombre_marca_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_marca, text="Logo:").grid(row=1, column=0, padx=5, pady=5)
+        ttk.Label(self.tab_marca, text="Logo:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.imagenes_marcas_Entry = []
-        self.imagenes_button = ttk.Button(self.tab_marca, text="Cargar Logo", command=self.cargar_imagenes_marca)
-        self.imagenes_button.grid(row=1, column=1, padx=5, pady=5)
+        self.imagenes_button = tk.Button(self.tab_marca, text="Cargar Logo", command=self.cargar_imagenes_marca, bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                                        activeforeground="beige", font=("Arial", 10, "bold"))
+        self.imagenes_button.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         # Botón para guardar
-        self.guardar_button = ttk.Button(self.tab_marca, text="Guardar", command=self.guardar_marcas)
+        self.guardar_button = tk.Button(self.tab_marca, text="Guardar", command=self.guardar_marcas, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
         self.guardar_button.grid(row=2, column=0, columnspan=2, pady=10)
 
     def cargar_imagenes_marca(self):
@@ -1918,22 +1943,24 @@ class ProductoVista:
   
     def crear_pestaña_modelo(self):
         # Campos de entrada
-        ttk.Label(self.tab_modelo, text="Nombre:").grid(row=1, column=0, padx=5, pady=5)
+        ttk.Label(self.tab_modelo, text="Nombre:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.nombre_modelo_entry = ttk.Entry(self.tab_modelo)
-        self.nombre_modelo_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.nombre_modelo_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_modelo, text="Marca:").grid(row=0, column=0, padx=5, pady=5)
+        ttk.Label(self.tab_modelo, text="Marca:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.marca_combobox = ttk.Combobox(self.tab_modelo, state="readonly")
-        self.marca_combobox.grid(row=0, column=1, padx=5, pady=5)
+        self.marca_combobox.grid(row=0, column=1, padx=5, pady=5, sticky="w")
         self.cargar_marcas_combobox()
         
-        ttk.Label(self.tab_modelo, text="Imagen:").grid(row=2, column=0, padx=5, pady=5)
+        ttk.Label(self.tab_modelo, text="Imagen:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         self.imagen_modelo_entry = []
-        self.imagenes_button = ttk.Button(self.tab_modelo, text="Cargar Imagen", command=self.cargar_imagenes_modelo)
-        self.imagenes_button.grid(row=2, column=1, padx=5, pady=5)
+        self.imagenes_button = tk.Button(self.tab_modelo, text="Cargar Imagen", command=self.cargar_imagenes_modelo, bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                                        activeforeground="beige", font=("Arial", 10, "bold"))
+        self.imagenes_button.grid(row=2, column=1, padx=5, pady=5, sticky="w")
 
         # Botón para guardar
-        self.guardar_button = ttk.Button(self.tab_modelo, text="Guardar", command=self.guardar_modelo)
+        self.guardar_button = tk.Button(self.tab_modelo, text="Guardar", command=self.guardar_modelo, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
         self.guardar_button.grid(row=3, column=0, columnspan=2, pady=10)
     
     def cargar_marcas_combobox(self):
@@ -2009,14 +2036,17 @@ class ProductoVista:
         self.total_label.grid(row=1, column=2, padx=5, pady=5, sticky="w")
 
         # Botón para guardar el carrito
-        self.guardar_carro_button = ttk.Button(self.tab_carro, text="Guardar Carro", command=self.guardar_carro)
+        self.guardar_carro_button = tk.Button(self.tab_carro, text="Guardar Carro", command=self.guardar_carro, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
         self.guardar_carro_button.grid(row=1, column=3, padx=5, pady=5)
         # Nuevo botón: Eliminar producto seleccionado
-        self.eliminar_producto_button = ttk.Button(self.tab_carro, text="Eliminar Producto", command=self.eliminar_producto_carro)
+        self.eliminar_producto_button = tk.Button(self.tab_carro, text="Eliminar Producto", command=self.eliminar_producto_carro, bg="red", fg="white", bd=3, width=15, activebackground="red3",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
         self.eliminar_producto_button.grid(row=2, column=0, padx=5, pady=5)
 
         # Nuevo botón: Vaciar carrito completo
-        self.vaciar_carro_button = ttk.Button(self.tab_carro, text="Vaciar Carrito", command=self.vaciar_carro)
+        self.vaciar_carro_button = tk.Button(self.tab_carro, text="Vaciar Carrito", command=self.vaciar_carro, bg="red", fg="white", bd=3, width=15, activebackground="red3",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
         self.vaciar_carro_button.grid(row=2, column=1, padx=5, pady=5)
 
     def cargar_medios_pago(self):
