@@ -356,6 +356,7 @@ class ProductoModelo:
         """
         self.cursor.execute(consulta, (id_producto, id_compatibilidad, ))
         return self.cursor.fetchall()
+    
     def obtener_compatibilidad_actualizar(self, id_producto):
         consulta = """
             SELECT 
@@ -367,6 +368,24 @@ class ProductoModelo:
         """
         self.cursor.execute(consulta, (id_producto, ))
         return self.cursor.fetchall()
+    
+    def buscar_logo(self, id_compatibilidad):
+
+        consulta = """
+            SELECT 
+                m.imagen
+            FROM marcas as m
+            inner join compatibilidad_producto as cp
+            on cp.marca = m.id_marca
+            WHERE cp.id_compatibilidad_producto = %s
+        """
+        print("Aaaaq")
+        self.cursor.execute(consulta, (id_compatibilidad,))
+        # Extraemos solo las rutas de las imágenes de la consulta
+
+
+        return self.cursor.fetchone()
+
     def buscar_imagenes_producto(self, id_producto):
         
         consulta = """
@@ -404,7 +423,7 @@ class ProductoModelo:
             raise e
 
     def buscar_product_carro(self, id_producto, compatibilidad):
-        
+
         if compatibilidad != "No disponible":
             query = """
             SELECT p.codigo_producto, p.nombre, m.nombre AS marca, mo.nombre AS modelo, 
@@ -595,7 +614,12 @@ class ProductoVista:
         style.configure("TEntry", font=("Arial", 10, "bold"), bg="beige")
         style.configure("TCombobox", font=("Arial", 10, "bold"), bg="beige")
         style.configure("TButton", font=("Arial", 10, "bold"), bg="beige")
-        
+        style.configure("TNotebook", background="beige", borderwidth=0)
+        style.configure("TNotebook.Tab", font=("Arial", 10, "bold"), background="tan1", foreground="black")
+        style.map("TNotebook.Tab", 
+              background=[("selected", "tan4")],  # Café claro cuando está seleccionada
+              foreground=[("selected", "black")])
+
 
         # Pestañas
         self.notebook = ttk.Notebook(root)
@@ -605,6 +629,16 @@ class ProductoVista:
         self.tab_registro = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_registro, text="Registrar Producto")
         self.crear_pestaña_registro()
+
+         # Pestaña de marca
+        self.tab_marca = ttk.Frame(self.notebook, style="Custom.TFrame")
+        self.notebook.add(self.tab_marca, text="Registrar Marca")
+        self.crear_pestaña_marca()
+
+        # Pestaña Modelo
+        self.tab_modelo = ttk.Frame(self.notebook, style="Custom.TFrame")
+        self.notebook.add(self.tab_modelo, text="Registrar Modelo")
+        self.crear_pestaña_modelo()
 
         # Pestaña asignar ubicacion
         self.tab_ubicacion = ttk.Frame(self.notebook, style="Custom.TFrame")
@@ -621,19 +655,11 @@ class ProductoVista:
         self.notebook.add(self.tab_busqueda_marca, text="Buscar Producto por Modelo")
         self.crear_pestaña_busqueda_marca()
 
-        # Pestaña de marca
-        self.tab_marca = ttk.Frame(self.notebook, style="Custom.TFrame")
-        self.notebook.add(self.tab_marca, text="Registrar Marca")
-        self.crear_pestaña_marca()
-
-        # Pestaña Modelo
-        self.tab_modelo = ttk.Frame(self.notebook, style="Custom.TFrame")
-        self.notebook.add(self.tab_modelo, text="Registrar Modelo")
-        self.crear_pestaña_modelo()
+       
 
         #pestaña carro
         self.tab_carro = ttk.Frame(self.notebook, style="Custom.TFrame")
-        self.notebook.add(self.tab_carro, text="Carro")
+        self.notebook.add(self.tab_carro, text="Carrito")
         self.crear_pestaña_carro()
         self.carrito = []  
         self.total_final = 0.0
@@ -919,7 +945,7 @@ class ProductoVista:
         producto = self.resultados_tree_ubicacion.item(item[0], "values")
         id_producto = producto[9]
         
-        ubicacion_window = Toplevel(self.root)
+        ubicacion_window = Toplevel(self.root, bg="beige")
         ubicacion_window.title(f"Asignar Ubicación - {producto[3]}")
         ubicacion_window.geometry("400x300")
 
@@ -983,7 +1009,7 @@ class ProductoVista:
             año_2_entry_list = []
             id_compatibilidad_list = []
 
-            editar_window = Toplevel(self.root)
+            editar_window = Toplevel(self.root, bg="beige")
             editar_window.title(f"Editar Producto - {producto[3]}")
             editar_window.geometry("800x600")
             editar_window.resizable(False, False)
@@ -993,16 +1019,16 @@ class ProductoVista:
             editar_window.attributes("-fullscreen", False)
 
             # Canvas para scroll
-            canvas = Canvas(editar_window)
+            canvas = Canvas(editar_window, bg="beige")
             canvas.pack(side="left", fill="both", expand=True)
 
             # Scrollbar
-            scrollbar = Scrollbar(editar_window, orient="vertical", command=canvas.yview)
+            scrollbar = Scrollbar(editar_window, orient="vertical", command=canvas.yview, bg="white")
             scrollbar.pack(side="right", fill="y")
             canvas.configure(yscrollcommand=scrollbar.set)
 
             # Frame interno para contenido
-            contenidoa_frame = Frame(canvas)
+            contenidoa_frame = Frame(canvas, bg="beige")
 
             # Configuración del canvas para el frame interno
             canvas.create_window((0, 0), window=contenidoa_frame, anchor="nw")
@@ -1019,7 +1045,7 @@ class ProductoVista:
 
             editar_window.bind_all("<MouseWheel>", on_mousewheel1)
 
-            producto_frame = Frame(contenidoa_frame)
+            producto_frame = Frame(contenidoa_frame, bg="beige")
             producto_frame.pack(fill="x", padx=10, pady=10)
 
             ttk.Label(producto_frame, text="Producto:", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -1037,7 +1063,7 @@ class ProductoVista:
             codigo1_entry.insert(0, producto[0])
             codigo1_entry.grid(row=2, column=1, padx=5, pady=5)
 
-            precios_frame = Frame(contenidoa_frame)
+            precios_frame = Frame(contenidoa_frame, bg="beige")
             precios_frame.pack(fill="x", padx=10, pady=10)
 
             ttk.Label(precios_frame, text="Precio Cliente:", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -1050,7 +1076,7 @@ class ProductoVista:
             costo1_entry.insert(0, producto[11])
             costo1_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
-            dimensiones_frame = Frame(contenidoa_frame)
+            dimensiones_frame = Frame(contenidoa_frame, bg="beige")
             dimensiones_frame.pack(fill="x", padx=10, pady=10)
 
             ttk.Label(dimensiones_frame, text="Largo (cm):", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -1072,34 +1098,35 @@ class ProductoVista:
             
             if compatibilidad:
 
-                marcas_frame = Frame(contenidoa_frame)
+                marcas_frame = Frame(contenidoa_frame, bg="beige")
                 marcas_frame.pack(fill="x", padx=10, pady=10)
-                Label(marcas_frame, text="Compatible con:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
+                Label(marcas_frame, text="Compatible con:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
                 print("AAA")
                 i = 0
                 for compatible in compatibilidad:
 
-                    compa_frame = Frame(contenidoa_frame)
+                    compa_frame = Frame(contenidoa_frame, bg="beige")
                     compa_frame.pack(fill="x", padx=10, pady=10)
 
                     # Crear variables independientes para cada iteración
                     id_compatibilidad_list.append(compatible[7])
-                    Label(compa_frame, text=f"{compatible[1]} - {compatible[3]}"  if compatible[3] else compatible[1], font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
-                    ttk.Button(compa_frame, text="Eliminar Compatibilidad", command=lambda id=compatible[7]: eliminar_compatibilidad(id)).grid(row=0, column=1)
+                    Label(compa_frame, text=f"{compatible[1]} - {compatible[3]}"  if compatible[3] else compatible[1], font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w", padx=5)
+                    tk.Button(compa_frame, text="Eliminar Compatibilidad", bg="red", fg="white", bd=3, activebackground="red3",  # Fondo al presionar
+                      activeforeground="white",  font=("Arial", 10, "bold"), command=lambda id=compatible[7]: eliminar_compatibilidad(id)).grid(row=0, column=1, padx=5)
                     # Campos adicionales
-                    ttk.Label(compa_frame, text="Cilindrada:", font=("Arial", 10, "bold")).grid(row=1, column=0, padx=5, pady=5, sticky="w")
+                    tk.Label(compa_frame, text="Cilindrada:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, pady=5, sticky="w")
                     cilindrada1_entry = ttk.Entry(compa_frame)
                     cilindrada1_entry.insert(0, compatible[4] if compatible[4] is not None else "")
-                    cilindrada1_entry.grid(row=1, column=1, padx=5, pady=5)
+                    cilindrada1_entry.grid(row=1, column=1, pady=5)
                     cilindrada_entry_list.append(cilindrada1_entry)
 
-                    ttk.Label(compa_frame, text="Año 1:", font=("Arial", 10, "bold")).grid(row=1, column=2, padx=5, pady=5, sticky="w")
+                    tk.Label(compa_frame, text="Año 1:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=2, padx=5, pady=5, sticky="w")
                     año11_entry = ttk.Entry(compa_frame)
                     año11_entry.insert(0, compatible[5] if compatible[5] is not None else "")
                     año11_entry.grid(row=1, column=3, padx=5, pady=5)
                     año_1_entry_list.append(año11_entry)
 
-                    ttk.Label(compa_frame, text="Año 2:", font=("Arial", 10, "bold")).grid(row=1, column=4, padx=5, pady=5, sticky="w")
+                    tk.Label(compa_frame, text="Año 2:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=4, padx=5, pady=5, sticky="w")
                     año21_entry = ttk.Entry(compa_frame)
                     año21_entry.insert(0, compatible[6] if compatible[6] is not None else "")
                     año21_entry.grid(row=1, column=5, padx=5, pady=5)
@@ -1192,14 +1219,14 @@ class ProductoVista:
                         None
             
                 
-                add_compatibilidad = Toplevel(self.root)
+                add_compatibilidad = Toplevel(self.root, bg="beige")
                 add_compatibilidad.title(f"Agregar Compatibilidad - {producto1_entry.get()}")
                 add_compatibilidad.geometry("520x210")
 
                 add_compatibilidad.resizable(False, False)
                 add_compatibilidad.attributes("-fullscreen", False)
 
-                add_compatibilidad_frame = Frame(add_compatibilidad)
+                add_compatibilidad_frame = Frame(add_compatibilidad, bg="beige")
                 add_compatibilidad_frame.pack(fill="x", padx=10, pady=10)
 
                 ttk.Label(add_compatibilidad_frame, text=f"Agregar Compatibilidad al Producto: {producto1_entry.get()} - {codigo1_entry.get()}").grid(row=0, column=0, columnspan=4, pady=10)
@@ -1228,9 +1255,11 @@ class ProductoVista:
                 compatibilidad_add_cilindrada_entry = ttk.Entry(add_compatibilidad_frame)
                 compatibilidad_add_cilindrada_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
-                agregar_compatibilidad_add_button = ttk.Button(
+                agregar_compatibilidad_add_button = tk.Button(
                     add_compatibilidad_frame, 
                     text="Agregar Compatibilidad", 
+                    bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+                    activeforeground="white",  font=("Arial", 10, "bold"), 
                     command=agregar_compatibilidad_funcion
                 )
                 agregar_compatibilidad_add_button.grid(row=4, column=0, columnspan=4, pady=10, sticky="w")
@@ -1367,10 +1396,14 @@ class ProductoVista:
                     return messagebox.showerror("Error", f"No se pudo actualizar el producto: {e}")
             # Llamar a las funciones de inicialización
             
-            boton_frame = Frame(contenidoa_frame)
+            boton_frame = Frame(contenidoa_frame, bg="beige")
             boton_frame.pack(fill="x", padx=3, pady=10)
-            ttk.Button(boton_frame, text="Editar Producto", command=actualizar_producto_en_base).grid(row=0, column=0)
-            ttk.Button(boton_frame, text="Agregar Compatibilidad", command=agregar_compatibilidad_vista).grid(row=0, column=1)
+            tk.Button(boton_frame, text="Editar Producto", bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+                                                        activeforeground="white",  font=("Arial", 10, "bold"), 
+                                                        command=actualizar_producto_en_base).grid(row=0, column=0, padx=5)
+            tk.Button(boton_frame, text="Agregar Compatibilidad", bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                                        activeforeground="beige", font=("Arial", 10, "bold"), 
+                                        command=agregar_compatibilidad_vista).grid(row=0, column=1, padx=5)
             
 
         def eliminar_producto():
@@ -1412,38 +1445,55 @@ class ProductoVista:
                     None
 
 
-            eliminar_window = Toplevel(self.root)
+            eliminar_window = Toplevel(self.root, bg="beige")
             eliminar_window.title(f"Eliminar producto - {producto[3]}")
             eliminar_window.geometry("640x90")  # Ajustar tamaño de la ventana
             eliminar_window.resizable(False, False)
             eliminar_window.attributes("-fullscreen", False)
-            eliminar_frame = Frame(eliminar_window)
+            eliminar_frame = Frame(eliminar_window, bg="beige")
             eliminar_frame.pack(fill="both", padx=4, pady=4)
 
             ttk.Label(eliminar_frame, text="¿Estás seguro? Esto borrará toda la información del producto, incluyendo dónde está guardado.", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", padx=10, pady=10)
 
-            button_frame = Frame(eliminar_frame)
+            button_frame = Frame(eliminar_frame, bg="beige")
             button_frame.grid(row=1, column=0, pady=10, padx=10)
 
-            ttk.Button(button_frame, text="Eliminar", command=eliminar_producto_en_base, width=15).grid(row=0, column=0, padx=10)
-            ttk.Button(button_frame, text="Cancelar", command=cancelar_producto_en_base, width=15).grid(row=0, column=1, padx=10)
+            tk.Button(button_frame, text="Eliminar", 
+                      bg="red", fg="white", bd=3, activebackground="red3",  # Fondo al presionar
+                      activeforeground="white",  font=("Arial", 10, "bold"),
+                      command=eliminar_producto_en_base, width=15).grid(row=0, column=0, padx=10)
+            tk.Button(button_frame, text="Cancelar", 
+                      bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+                      activeforeground="white",  font=("Arial", 10, "bold"),
+                      command=cancelar_producto_en_base, width=15).grid(row=0, column=1, padx=10)
             
             button_frame.columnconfigure(0, weight=1)
             button_frame.columnconfigure(1, weight=1)
 
-        ttk.Button(ubicacion_window, text="Guardar Ubicación", command=guardar_ubicacion).grid(row=4, column=0, columnspan=2, pady=10)
-        ttk.Button(ubicacion_window, text="Editar Producto", command=actualizar_producto).grid(row=5, column=0, columnspan=2, pady=10)
-        ttk.Button(ubicacion_window, text="Eliminar Producto", command=eliminar_producto).grid(row=6, column=0, columnspan=2, pady=10)
+        tk.Button(ubicacion_window, text="Guardar Ubicación", bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+                  activeforeground="white",  font=("Arial", 10, "bold"), 
+                  command=guardar_ubicacion).grid(row=4, column=0, columnspan=2, pady=10)
+        tk.Button(ubicacion_window, text="Editar Producto", bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                  activeforeground="beige", font=("Arial", 10, "bold"), 
+                  command=actualizar_producto).grid(row=5, column=0, columnspan=2, pady=10)
+        tk.Button(ubicacion_window, text="Eliminar Producto", command=eliminar_producto, bg="red", 
+                  fg="white", bd=3, width=15, activebackground="red3",  # Fondo al presionar
+                  activeforeground="white",  font=("Arial", 10, "bold")).grid(row=6, column=0, columnspan=2, pady=10)
         
     def crear_pestaña_busqueda(self):
-        # Campo de búsqueda
-        ttk.Label(self.tab_busqueda, text="Buscar Producto:").pack(padx=5, pady=5)
-        self.busqueda_entry = ttk.Entry(self.tab_busqueda, width=65)
+        tree_frame_busca_titulo = tk.Frame(self.tab_busqueda, bg="beige")
+        tree_frame_busca_titulo.pack(fill="x", padx=5, pady=5)
+        ttk.Label(tree_frame_busca_titulo, text="Buscar Producto:", font=("Arial", 10, "bold")).pack(padx=5, pady=5)
+
+        tree_frame_buscar = tk.Frame(self.tab_busqueda, bg="beige")
+        tree_frame_buscar.pack(fill="x", padx=5, pady=5)
+
+        self.busqueda_entry = ttk.Entry(tree_frame_buscar, width=65)
         self.busqueda_entry.pack(padx=5, pady=5)
 
-        self.buscar_button = tk.Button(self.tab_busqueda, text="Buscar", command=self.buscar_producto, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
-                                        activeforeground="white",  font=("Arial", 10, "bold"))
-        self.buscar_button.pack(pady=5)
+        self.buscar_button = tk.Button(tree_frame_buscar, text="Buscar", command=self.buscar_producto, bg="green", fg="white", bd=3, width=15, 
+                                        activebackground="darkgreen", activeforeground="white", font=("Arial", 10, "bold"))
+        self.buscar_button.pack(padx=5, pady=5)
 
         # Frame para Treeview y Scrollbars
         tree_frame = ttk.Frame(self.tab_busqueda)
@@ -1465,13 +1515,14 @@ class ProductoVista:
             yscrollcommand=y_scroll.set
         )
 
-        # Encabezados
+        # Configurar encabezados
         encabezados = [
             "Código Producto", "Marca", "Modelo", "Nombre", "Descripción",
             "Cilindrada", "Año 1", "Año 2", "Cantidad Total", "Precio", "Costo"
         ]
         for col, texto in zip(self.resultados_tree["columns"], encabezados):
             self.resultados_tree.heading(col, text=texto)
+            self.resultados_tree.column(col, minwidth=100, width=120, stretch=True)
 
         self.resultados_tree.pack(fill="both", expand=True)
 
@@ -1479,21 +1530,9 @@ class ProductoVista:
         x_scroll.config(command=self.resultados_tree.xview)
         y_scroll.config(command=self.resultados_tree.yview)
 
-        # Ajustar tamaño dinámico de columnas
-        tree_frame.bind("<Configure>", lambda event: self.ajustar_columnas())
-
         # Doble clic en un producto para ver detalles
         self.resultados_tree.bind("<Double-1>", self.ver_detalles_producto)
 
-    def ajustar_columnas(self):
-        # Ajusta el ancho de las columnas proporcionalmente al tamaño del Treeview
-        total_width = self.resultados_tree.winfo_width()
-        num_columns = len(self.resultados_tree["columns"])
-
-        if num_columns > 0:
-            width_per_column = total_width // num_columns
-            for col in self.resultados_tree["columns"]:
-                self.resultados_tree.column(col, width=width_per_column)
 
     def buscar_producto(self):
         nombre = self.busqueda_entry.get()
@@ -1660,8 +1699,11 @@ class ProductoVista:
         detalles_window.title("Detalles del Producto")
         detalles_window.geometry("800x600")
 
+        detalles_window.resizable(False, False)
+        detalles_window.attributes("-fullscreen", False)
+
         # Canvas para scroll
-        canvas = Canvas(detalles_window)
+        canvas = Canvas(detalles_window, bg="beige")
         canvas.pack(side="left", fill="both", expand=True)
 
         # Scrollbar
@@ -1670,7 +1712,7 @@ class ProductoVista:
         canvas.configure(yscrollcommand=scrollbar.set)
 
         # Frame interno para contenido
-        contenedor = Frame(canvas)
+        contenedor = Frame(canvas, bg="beige")
 
         # Configuración del canvas para el frame interno
         canvas.create_window((0, 0), window=contenedor, anchor="nw")
@@ -1688,27 +1730,27 @@ class ProductoVista:
         detalles_window.bind_all("<MouseWheel>", on_mousewheel)
 
         # Información básica
-        marca_frame = Frame(contenedor)
+        marca_frame = Frame(contenedor, bg="beige")
         marca_frame.pack(fill="x", padx=10, pady=10)
-        Label(marca_frame, text="Marca:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
-        Label(marca_frame, text=detalles[0][12], font=("Arial", 10)).grid(row=0, column=1, sticky="w")
+        Label(marca_frame, text="Marca:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
+        Label(marca_frame, text=detalles[0][12], font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
 
-        Label(marca_frame, text="Modelo:", font=("Arial", 10, "bold")).grid(row=1, column=0, sticky="w")
-        Label(marca_frame, text=detalles[0][13], font=("Arial", 10)).grid(row=1, column=1, sticky="w")
+        Label(marca_frame, text="Modelo:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, sticky="w")
+        Label(marca_frame, text=detalles[0][13], font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
 
-        Label(marca_frame, text="Cilindrada:", font=("Arial", 10, "bold")).grid(row=2, column=0, sticky="w")
-        Label(marca_frame, text=detalles[0][14], font=("Arial", 10)).grid(row=2, column=1, sticky="w")
+        Label(marca_frame, text="Cilindrada:", font=("Arial", 10, "bold"), bg="beige").grid(row=2, column=0, sticky="w")
+        Label(marca_frame, text=detalles[0][14], font=("Arial", 10), bg="beige").grid(row=2, column=1, sticky="w")
 
-        Label(marca_frame, text="Año:", font=("Arial", 10, "bold")).grid(row=3, column=0, sticky="w")
-        Label(marca_frame, text=f"{detalles[0][15]} - {detalles[0][16]}", font=("Arial", 10)).grid(row=3, column=1, sticky="w")
+        Label(marca_frame, text="Año:", font=("Arial", 10, "bold"), bg="beige").grid(row=3, column=0, sticky="w")
+        Label(marca_frame, text=f"{detalles[0][15]} - {detalles[0][16]}", font=("Arial", 10), bg="beige").grid(row=3, column=1, sticky="w")
         
-        info_frame = Frame(contenedor)
+        info_frame = Frame(contenedor, bg="beige")
         info_frame.pack(fill="x", padx=10, pady=10)
 
-        Label(info_frame, text="Nombre:", font=("Arial", 10, "bold")).grid(row=1, column=0, sticky="w")
-        Label(info_frame, text=detalles[0][0], font=("Arial", 10)).grid(row=1, column=1, sticky="w")
+        Label(info_frame, text="Nombre:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, sticky="w")
+        Label(info_frame, text=detalles[0][0], font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
 
-        Label(info_frame, text="Descripción:", font=("Arial", 10, "bold")).grid(row=2, column=0, sticky="w")
+        Label(info_frame, text="Descripción:", font=("Arial", 10, "bold"), bg="beige").grid(row=2, column=0, sticky="w")
         descripcion_texto = Text(info_frame, wrap="word", height=3, width=50, font=("Arial", 10))
         descripcion_texto.grid(row=2, column=1, sticky="w")
         scroll = Scrollbar(info_frame, command=descripcion_texto.yview)
@@ -1717,32 +1759,33 @@ class ProductoVista:
         descripcion_texto.insert(END, detalles[0][1] if detalles[0][1] else "No disponible")
         descripcion_texto.config(state="disabled")
 
-        Label(info_frame, text="Código:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
-        Label(info_frame, text=detalles[0][2], font=("Arial", 10)).grid(row=0, column=1, sticky="w")
+        Label(info_frame, text="Código:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
+        Label(info_frame, text=detalles[0][2], font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
 
         # Precios
-        precios_frame = Frame(contenedor)
+        precios_frame = Frame(contenedor, bg="beige")
         precios_frame.pack(fill="x", padx=10, pady=10)
-        Label(precios_frame, text="Precio Cliente:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
-        Label(precios_frame, text=f"${detalles[0][7]:.2f}", font=("Arial", 10)).grid(row=0, column=1, sticky="w")
+        Label(precios_frame, text="Precio Cliente:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
+        Label(precios_frame, text=f"${detalles[0][7]:.2f}", font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
 
-        Label(precios_frame, text="Costo Empresa:", font=("Arial", 10, "bold")).grid(row=1, column=0, sticky="w")
-        Label(precios_frame, text=f"${detalles[0][8]:.2f}", font=("Arial", 10)).grid(row=1, column=1, sticky="w")
+        Label(precios_frame, text="Costo Empresa:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, sticky="w")
+        Label(precios_frame, text=f"${detalles[0][8]:.2f}", font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
 
         # Dimensiones
-        dimensiones_frame = Frame(contenedor)
+        dimensiones_frame = Frame(contenedor, bg="beige")
         dimensiones_frame.pack(fill="x", padx=10, pady=10)
 
-        Label(dimensiones_frame, text="Dimensiones:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
-        Label(dimensiones_frame, text=f"{detalles[0][9]} cm x {detalles[0][10]} cm x {detalles[0][11]} cm", font=("Arial", 10)).grid(row=0, column=1, sticky="w")
+        Label(dimensiones_frame, text="Dimensiones:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
+        Label(dimensiones_frame, text=f"{detalles[0][9]} cm x {detalles[0][10]} cm x {detalles[0][11]} cm", font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
 
         if compatibilidad:
-            compatible_frame = Frame(contenedor)
+            compatible_frame = Frame(contenedor, bg="beige")
             compatible_frame.pack(fill="x", padx=10, pady=10)
-            Label(compatible_frame, text=f"Compatible con:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
+            Label(compatible_frame, text=f"Compatible con:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
             i=1
             for compatible in compatibilidad:
-                Label(compatible_frame, text=f"- {compatible[0]} {compatible[1]}, Cilindrada: {compatible[2]}, Año: {compatible[3]} - {compatible[4]}", font=("Arial", 10, "bold")).grid(row=i, column=0, sticky="w")
+                Label(compatible_frame, text=f"- {compatible[0]} {compatible[1]}, Cilindrada: {compatible[2]}, Año: {compatible[3]} - {compatible[4]}" if compatible[1] else 
+                      f"- {compatible[0]}, Cilindrada: {compatible[2]}, Año: {compatible[3]} - {compatible[4]}", font=("Arial", 10, "bold"), bg="beige").grid(row=i, column=0, sticky="w")
                 i += 1
 
         i = 1
@@ -1752,14 +1795,14 @@ class ProductoVista:
         ubicacion = []
         for detalle in detalles:
             # Ubicación y cantidad
-            ubicacion_frame = Frame(contenedor)
+            ubicacion_frame = Frame(contenedor, bg="beige")
             ubicacion_frame.pack(fill="x", padx=10, pady=10)
 
-            Label(ubicacion_frame, text=f"Ubicación {i}:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
-            Label(ubicacion_frame, text=f"Pasillo {detalle[3]}, Sección {detalle[4]}, Piso {detalle[5]}", font=("Arial", 10)).grid(row=0, column=1, sticky="w")
+            Label(ubicacion_frame, text=f"Ubicación {i}:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
+            Label(ubicacion_frame, text=f"Pasillo {detalle[3]}, Sección {detalle[4]}, Piso {detalle[5]}", font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
 
-            Label(ubicacion_frame, text="Cantidad:", font=("Arial", 10, "bold")).grid(row=1, column=0, sticky="w")
-            Label(ubicacion_frame, text=detalle[6], font=("Arial", 10)).grid(row=1, column=1, sticky="w")
+            Label(ubicacion_frame, text="Cantidad:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, sticky="w")
+            Label(ubicacion_frame, text=detalle[6], font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
             lista.append(f"Ubicación {i}")
             ubicacion.append({"pasillo":detalle[3], "seccion":detalle[4], "piso":detalle[5]})
             cantidades.append(detalle[6])
@@ -1839,62 +1882,89 @@ class ProductoVista:
                 
            
         ttk.Label(marca_frame, text="").grid(row=2, column=2, padx=140)
-        ttk.Button(marca_frame, text="Agregar al carrito", command=agregar_al_carrito).grid(row=2, column=3, columnspan=2)
+        tk.Button(marca_frame, text="Agregar al carrito", command=agregar_al_carrito, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold")).grid(row=2, column=3, columnspan=2)
 
         # Imagen del producto
         self.modelo = ProductoModelo()
+        print(id_compatibilidad)
+        logo = self.modelo.buscar_logo(id_compatibilidad)
         imagenes = self.modelo.buscar_imagenes_producto(id_producto)  # Obtener las imágenes desde la base de datos
-        imagen_frame = Frame(contenedor)
-        imagen_frame.pack(fill="x", padx=10, pady=10)
+        if imagenes:
+            imagen_frame = Frame(contenedor, bg="beige")
+            imagen_frame.pack(fill="x", padx=10, pady=10)
 
-        imagen_actual = [0]  # Usamos una lista para que sea mutable y accesible dentro de las funciones locales
+            imagen_actual = [0]  # Usamos una lista para que sea mutable y accesible dentro de las funciones locales
 
-        
-        def mostrar_imagen(indice):
+            
+            def mostrar_imagen(indice):
+                try:
+                    # Convierte los datos binarios en una imagen
+                    imagen_data = BytesIO(imagenes[indice])
+                    imagen = Image.open(imagen_data)
+                    imagen = imagen.resize((300, 300), Image.LANCZOS)
+                    imagen_tk = ImageTk.PhotoImage(imagen)
+
+                    # Actualiza la etiqueta de la imagen
+                    imagen_label.config(image=imagen_tk)
+                    imagen_label.image = imagen_tk  # Mantén la referencia para evitar que se elimine
+                    imagen_label.pack()
+
+                    # Actualiza la etiqueta del contador
+                    contador_label.config(text=f"Imagen {indice + 1} de {len(imagenes)}", font=("Arial", 10, "bold"))
+                except Exception as e:
+                    Label(imagen_frame, text=f"No hay imagen", font=("Arial", 10, "italic", "bold"), bg="beige", fg="red").pack()
+
+            def imagen_anterior():
+                if imagen_actual[0] > 0:
+                    imagen_actual[0] -= 1
+                    mostrar_imagen(imagen_actual[0])
+
+            def imagen_siguiente():
+                if imagen_actual[0] < len(imagenes) - 1:
+                    imagen_actual[0] += 1
+                    mostrar_imagen(imagen_actual[0])
+
+            # Botones para navegar entre imágenes
+            boton_anterior = Button(imagen_frame, text="Anterior", command=imagen_anterior, bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                                            activeforeground="beige", font=("Arial", 10, "bold"))
+            boton_anterior.pack(side="left", padx=5)
+
+            boton_siguiente = Button(imagen_frame, text="Siguiente", command=imagen_siguiente, bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                                            activeforeground="beige", font=("Arial", 10, "bold"))
+            boton_siguiente.pack(side="right", padx=5)
+
+            # Etiqueta para mostrar imágenes
+            imagen_label = Label(imagen_frame, bg="beige")
+            imagen_label.pack()
+
+            # Etiqueta para el contador
+            contador_label = Label(imagen_frame, text="", bg="beige")
+            contador_label.pack()
+
+            # Muestra la primera imagen
+            mostrar_imagen(imagen_actual[0])
+
+        if logo:
+            print("aa")
+            logo_frame = Frame(contenedor, bg="beige")
+            logo_frame.pack(fill="x", padx=10, pady=10)
+            logo_label = Label(marca_frame, bg="beige")
+            logo_label.pack()
             try:
                 # Convierte los datos binarios en una imagen
-                imagen_data = BytesIO(imagenes[indice])
-                imagen = Image.open(imagen_data)
-                imagen = imagen.resize((300, 300), Image.LANCZOS)
-                imagen_tk = ImageTk.PhotoImage(imagen)
-
+                logo_data = BytesIO([logo])
+                logo = Image.open(logo_data)
+                logo = logo.resize((50, 50), Image.LANCZOS)
+                logo_tk = ImageTk.PhotoImage(logo)
                 # Actualiza la etiqueta de la imagen
-                imagen_label.config(image=imagen_tk)
-                imagen_label.image = imagen_tk  # Mantén la referencia para evitar que se elimine
-                imagen_label.pack()
-
+                logo_label.config(image=logo_tk)
+                logo_label.image = logo_tk  # Mantén la referencia para evitar que se elimine
+                logo_label.pack()
                 # Actualiza la etiqueta del contador
-                contador_label.config(text=f"Imagen {indice + 1} de {len(imagenes)}")
+
             except Exception as e:
-                Label(imagen_frame, text=f"Error al cargar la imagen: {e}", font=("Arial", 10, "italic"), fg="red").pack()
-
-        def imagen_anterior():
-            if imagen_actual[0] > 0:
-                imagen_actual[0] -= 1
-                mostrar_imagen(imagen_actual[0])
-
-        def imagen_siguiente():
-            if imagen_actual[0] < len(imagenes) - 1:
-                imagen_actual[0] += 1
-                mostrar_imagen(imagen_actual[0])
-
-        # Botones para navegar entre imágenes
-        boton_anterior = Button(imagen_frame, text="Anterior", command=imagen_anterior)
-        boton_anterior.pack(side="left", padx=5)
-
-        boton_siguiente = Button(imagen_frame, text="Siguiente", command=imagen_siguiente)
-        boton_siguiente.pack(side="right", padx=5)
-
-        # Etiqueta para mostrar imágenes
-        imagen_label = Label(imagen_frame)
-        imagen_label.pack()
-
-        # Etiqueta para el contador
-        contador_label = Label(imagen_frame, text="")
-        contador_label.pack()
-
-        # Muestra la primera imagen
-        mostrar_imagen(imagen_actual[0])
+                None
 
         detalles_window.mainloop()
 
@@ -2414,11 +2484,11 @@ class ProductoControlador:
 # Inicialización
 if __name__ == "__main__":
     root = Tk()
-    root.title("Gestión de Productos")
+    root.title("GESTIÓN DE BODEGA - REPUESTOS RONY")
     root.state('zoomed')
     root.resizable(True, True)
     root.attributes("-fullscreen", False)
-
+    
     # Crea la vista y luego el controlador, pasando la vista al controlador
     controlador = ProductoControlador(None)  # Inicializa el controlador sin la vista aún
 
