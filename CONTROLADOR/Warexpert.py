@@ -12,7 +12,7 @@ class ProductoModelo:
         self.conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="admin",  # Cambiar según configuración local
+            password="1234",  # Cambiar según configuración local
             database="Warexpert"
         )
         
@@ -59,9 +59,9 @@ class ProductoModelo:
             self.conn.rollback()
             raise e
         
-    def actualizar_compatibilidad(self, marca, modelo, cilindrada, año0, año1, id):
+    def actualizar_compatibilidad(self, cilindrada, año0, año1, id):
         try:
-            self.cursor.execute("Update compatibilidad_producto set marca=%s, modelo=%s, cilindrada=%s ,año0=%s, año1=%s where id_compatibilidad_producto = %s", (marca, modelo, cilindrada, año0, año1, id))
+            self.cursor.execute("Update compatibilidad_producto set cilindrada=%s ,año0=%s, año1=%s where id_compatibilidad_producto = %s", (cilindrada, año0, año1, id))
             self.conn.commit()
         except Exception as e:
             self.conn.rollback()
@@ -255,6 +255,7 @@ class ProductoModelo:
                     condiciones.append("ABS(cp.cilindrada - %s) < 0.01")  # Margen de error para flotantes
                     parametros.append(float(palabra))
                 else:
+                    palabra = str(palabra)
                     like_pattern = f"%{palabra}%"
                     condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s)")
                     parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern])
@@ -379,6 +380,17 @@ class ProductoModelo:
 
         return [imagen[0] for imagen in self.cursor.fetchall()]
 
+    def eliminar_compatibilidad(self, id):
+        try:
+            
+            self.cursor.execute(f"delete from compatibilidad_producto where id_compatibilidad_producto={id}")
+            self.conn.commit()
+
+        except Exception as e:
+
+            self.conn.rollback()
+            raise e
+        
     def eliminar(self, id):
         try:
             
@@ -623,50 +635,54 @@ class ProductoVista:
 
     def crear_pestaña_registro(self):
         self.id=[]
+        datos_frame = Frame(self.tab_registro)
+        datos_frame.pack(fill="x", padx=10, pady=10)
         # Campos de entrada
-        ttk.Label(self.tab_registro, text="Nombre:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.nombre_entry = ttk.Entry(self.tab_registro)
+        ttk.Label(datos_frame, text="Nombre:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.nombre_entry = ttk.Entry(datos_frame, width=75)
         self.nombre_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        ttk.Label(self.tab_registro, text="Descripción:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.descripcion_entry = ttk.Entry(self.tab_registro)
+        ttk.Label(datos_frame, text="Descripción:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.descripcion_entry = ttk.Entry(datos_frame, width=75)
         self.descripcion_entry.grid(row=1, column=1, padx=5, pady=5)
 
 
-        ttk.Label(self.tab_registro, text="Código Producto:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        self.codigo_entry = ttk.Entry(self.tab_registro)
+        ttk.Label(datos_frame, text="Código Producto:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.codigo_entry = ttk.Entry(datos_frame, width=75)
         self.codigo_entry.grid(row=2, column=1, padx=5, pady=5)
 
-        ttk.Label(self.tab_registro, text="Precio Cliente:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        self.precio_entry = ttk.Entry(self.tab_registro)
-        self.precio_entry.grid(row=3, column=1, padx=5, pady=5)
+        ttk.Label(datos_frame, text="Precio Cliente:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.precio_entry = ttk.Entry(datos_frame)
+        self.precio_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_registro, text="Costo Empresa:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        self.costo_entry = ttk.Entry(self.tab_registro)
-        self.costo_entry.grid(row=4, column=1, padx=5, pady=5)
+        ttk.Label(datos_frame, text="Costo Empresa:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        self.costo_entry = ttk.Entry(datos_frame)
+        self.costo_entry.grid(row=4, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_registro, text="Largo (cm):").grid(row=5, column=0, padx=5, pady=5, sticky="w")
-        self.largo_entry = ttk.Entry(self.tab_registro)
-        self.largo_entry.grid(row=5, column=1, padx=5, pady=5)
+        ttk.Label(datos_frame, text="Largo (cm):").grid(row=5, column=0, padx=5, pady=5, sticky="w")
+        self.largo_entry = ttk.Entry(datos_frame)
+        self.largo_entry.grid(row=5, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_registro, text="Ancho (cm):").grid(row=6, column=0, padx=5, pady=5, sticky="w")
-        self.ancho_entry = ttk.Entry(self.tab_registro)
-        self.ancho_entry.grid(row=6, column=1, padx=5, pady=5)
+        ttk.Label(datos_frame, text="Ancho (cm):").grid(row=6, column=0, padx=5, pady=5, sticky="w")
+        self.ancho_entry = ttk.Entry(datos_frame)
+        self.ancho_entry.grid(row=6, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_registro, text="Altura (cm):").grid(row=7, column=0, padx=5, pady=5, sticky="w")
-        self.altura_entry = ttk.Entry(self.tab_registro)
-        self.altura_entry.grid(row=7, column=1, padx=5, pady=5)
+        ttk.Label(datos_frame, text="Altura (cm):").grid(row=7, column=0, padx=5, pady=5, sticky="w")
+        self.altura_entry = ttk.Entry(datos_frame)
+        self.altura_entry.grid(row=7, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_registro, text="Imágenes:").grid(row=8, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Imágenes:").grid(row=8, column=0, padx=5, pady=5, sticky="w")
         self.imagenes_list = []
-        self.imagenes_button = ttk.Button(self.tab_registro, text="Cargar Imágenes", command=self.cargar_imagenes)
-        self.imagenes_button.grid(row=8, column=1, padx=5, pady=5)
+        self.imagenes_button = ttk.Button(datos_frame, text="Cargar Imágenes", command=self.cargar_imagenes)
+        self.imagenes_button.grid(row=8, column=1, padx=5, pady=5, sticky="w")
 
         # Botón para guardar
-        self.guardar_button = ttk.Button(self.tab_registro, text="Guardar", command=self.guardar_producto)
+        self.guardar_button = ttk.Button(datos_frame, text="Guardar", command=self.guardar_producto)
         self.guardar_button.grid(row=9, column=0, columnspan=2, pady=10)
 
-        
+        self.compatibilidad_frame = Frame(self.tab_registro)
+        self.compatibilidad_frame.pack(fill="x", padx=10, pady=10)
+
     def cargar_marca_compatibilicad_combobox(self):
         # Obtener marcas desde la base de datos
         modelos = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
@@ -755,38 +771,40 @@ class ProductoVista:
         if not self.costo_entry.get():
             return messagebox.showwarning("Advertencia", "Debe agregar un costo al producto.")   
 
-        ttk.Label(self.tab_registro, text=f"Agregar Compatibilidad al Producto: {self.nombre_entry.get()} - {self.codigo_entry.get()}").grid(row=10, column=0, columnspan=4, pady=10)
+        
+
+        ttk.Label(self.compatibilidad_frame, text=f"Agregar Compatibilidad al Producto: {self.nombre_entry.get()} - {self.codigo_entry.get()}").grid(row=10, column=0, columnspan=4, pady=10)
     
-        ttk.Label(self.tab_registro, text="Marca:").grid(row=11, column=0, padx=5, pady=5, sticky="w")
-        self.compatibilidad_marcas_combobox = ttk.Combobox(self.tab_registro, state="readonly")
-        self.compatibilidad_marcas_combobox.grid(row=11, column=1, padx=5, pady=5)
+        ttk.Label(self.compatibilidad_frame, text="Marca:").grid(row=11, column=0, padx=5, pady=5, sticky="w")
+        self.compatibilidad_marcas_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly")
+        self.compatibilidad_marcas_combobox.grid(row=11, column=1, padx=5, pady=5, sticky="w")
         self.cargar_marca_compatibilicad_combobox()
 
         self.compatibilidad_marcas_combobox.bind("<<ComboboxSelected>>", self.actualizar_modelos_compatibilidad)
 
-        ttk.Label(self.tab_registro, text="Modelo:").grid(row=11, column=2, padx=5, pady=5, sticky="w")
-        self.compatibilidad_modelo_combobox = ttk.Combobox(self.tab_registro, state="readonly")
-        self.compatibilidad_modelo_combobox.grid(row=11, column=3, padx=5, pady=5)
+        ttk.Label(self.compatibilidad_frame, text="Modelo:").grid(row=11, column=2, padx=5, pady=5, sticky="w")
+        self.compatibilidad_modelo_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly")
+        self.compatibilidad_modelo_combobox.grid(row=11, column=3, padx=5, pady=5, sticky="w")
         self.compatibilidad_modelo_combobox.state(["disabled"])
 
-        ttk.Label(self.tab_registro, text="Año Inicio:").grid(row=12, column=0, padx=5, pady=5, sticky="w")
-        self.compatibilidad_año1_entry = ttk.Entry(self.tab_registro)
-        self.compatibilidad_año1_entry.grid(row=12, column=1, padx=5, pady=5)
+        ttk.Label(self.compatibilidad_frame, text="Año Inicio:").grid(row=12, column=0, padx=5, pady=5, sticky="w")
+        self.compatibilidad_año1_entry = ttk.Entry(self.compatibilidad_frame)
+        self.compatibilidad_año1_entry.grid(row=12, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_registro, text="Año Fin:").grid(row=12, column=2, padx=5, pady=5, sticky="w")
-        self.compatibilidad_año2_entry = ttk.Entry(self.tab_registro)
-        self.compatibilidad_año2_entry.grid(row=12, column=3, padx=5, pady=5)
+        ttk.Label(self.compatibilidad_frame, text="Año Fin:").grid(row=12, column=2, padx=5, pady=5, sticky="w")
+        self.compatibilidad_año2_entry = ttk.Entry(self.compatibilidad_frame)
+        self.compatibilidad_año2_entry.grid(row=12, column=3, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_registro, text="Cilindrada:").grid(row=13, column=0, padx=5, pady=5, sticky="w")
-        self.compatibilidad_cilindrada_entry = ttk.Entry(self.tab_registro)
-        self.compatibilidad_cilindrada_entry.grid(row=13, column=1, padx=5, pady=5)
+        ttk.Label(self.compatibilidad_frame, text="Cilindrada:").grid(row=13, column=0, padx=5, pady=5, sticky="w")
+        self.compatibilidad_cilindrada_entry = ttk.Entry(self.compatibilidad_frame)
+        self.compatibilidad_cilindrada_entry.grid(row=13, column=1, padx=5, pady=5, sticky="w")
 
         self.agregar_compatibilidad_button = ttk.Button(
-            self.tab_registro, 
+            self.compatibilidad_frame, 
             text="Agregar Compatibilidad", 
             command=self.agregar_compatibilidad
         )
-        self.agregar_compatibilidad_button.grid(row=14, column=0, columnspan=4, pady=10)
+        self.agregar_compatibilidad_button.grid(row=14, column=0, columnspan=4, pady=10, sticky="w")
 
 
         datos = {
@@ -820,27 +838,53 @@ class ProductoVista:
     def crear_pestaña_ubicacion(self):
         # Campo de búsqueda
         ttk.Label(self.tab_ubicacion, text="Buscar Producto:").pack(padx=5, pady=5)
-        self.busqueda_entry_ubicacion = ttk.Entry(self.tab_ubicacion)
+        self.busqueda_entry_ubicacion = ttk.Entry(self.tab_ubicacion, width=65)
         self.busqueda_entry_ubicacion.pack(padx=5, pady=5)
 
         self.buscar_button = ttk.Button(self.tab_ubicacion, text="Buscar", command=self.buscar_product)
         self.buscar_button.pack(pady=5)
 
-        # Resultados
-        self.resultados_tree_ubicacion = ttk.Treeview(self.tab_ubicacion, columns=("Código", "Marca", "Modelo", "Nombre", "Descripción", "Cilindrada", "Año 1", "Año 2", "Cantidad Total"), show="headings")
-        self.resultados_tree_ubicacion.heading("Código", text="Código Producto")
-        self.resultados_tree_ubicacion.heading("Marca", text="Marca")
-        self.resultados_tree_ubicacion.heading("Modelo", text="Modelo")
-        self.resultados_tree_ubicacion.heading("Nombre", text="Nombre")
-        self.resultados_tree_ubicacion.heading("Descripción", text="Descripción")
-        self.resultados_tree_ubicacion.heading("Cilindrada", text="Cilindrada")
-        self.resultados_tree_ubicacion.heading("Año 1", text="Año 1")
-        self.resultados_tree_ubicacion.heading("Año 2", text="Año 2")
-        self.resultados_tree_ubicacion.heading("Cantidad Total", text="Cantidad Total")
-        self.resultados_tree_ubicacion.pack(fill="both", expand=True, padx=5, pady=5)
+        # Frame para Treeview y Scrollbars
+        tree_frame_ubicacion = ttk.Frame(self.tab_ubicacion)
+        tree_frame_ubicacion.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # Scrollbars
+        x_scroll = ttk.Scrollbar(tree_frame_ubicacion, orient="horizontal")
+        x_scroll.pack(side="bottom", fill="x")
+
+        y_scroll = ttk.Scrollbar(tree_frame_ubicacion, orient="vertical")
+        y_scroll.pack(side="right", fill="y")
+
+        # Treeview
+        self.resultados_tree_ubicacion = ttk.Treeview(
+            tree_frame_ubicacion,
+            columns=("Código", "Marca", "Modelo", "Nombre", "Descripción", "Cilindrada", "Año 1", "Año 2", "Cantidad Total"),
+            show="headings",
+            xscrollcommand=x_scroll.set,
+            yscrollcommand=y_scroll.set
+        )
+        self.resultados_tree_ubicacion.pack(fill="both", expand=True)
+
+        # Configurar encabezados
+        encabezados = [
+            "Código Producto", "Marca", "Modelo", "Nombre", "Descripción", 
+            "Cilindrada", "Año 1", "Año 2", "Cantidad Total"
+        ]
+        for col, texto in zip(self.resultados_tree_ubicacion["columns"], encabezados):
+            self.resultados_tree_ubicacion.heading(col, text=texto)
+            self.resultados_tree_ubicacion.column(col, minwidth=100, width=120, stretch=True)
+
+        # Configurar scrollbars
+        x_scroll.config(command=self.resultados_tree_ubicacion.xview)
+        y_scroll.config(command=self.resultados_tree_ubicacion.yview)
+
+        # Ajustar tamaño dinámico de columnas
+        self.tab_ubicacion.pack_propagate(False)
 
         # Doble clic en un producto para ver detalles
         self.resultados_tree_ubicacion.bind("<Double-1>", self.agregar_ubicacion_producto)
+
+
 
     def buscar_product(self):
         nombre = self.busqueda_entry_ubicacion.get()
@@ -861,7 +905,7 @@ class ProductoVista:
 
         producto = self.resultados_tree_ubicacion.item(item[0], "values")
         id_producto = producto[9]
-        compatibilidad = self.controlador.obtener_compatibilidad(id_producto)
+        
         ubicacion_window = Toplevel(self.root)
         ubicacion_window.title(f"Asignar Ubicación - {producto[1]} {producto[2]} {producto[3]}")
         ubicacion_window.geometry("400x300")
@@ -920,70 +964,12 @@ class ProductoVista:
                 None
 
         def actualizar_producto():
-
-            marca1_var_list = []
-            modelo1_var_list = []
-            marca1_entry_list = []
-            modelo1_entry_list = []
+            compatibilidad = self.controlador.obtener_compatibilidad(id_producto)
             cilindrada_entry_list = []
             año_1_entry_list = []
             año_2_entry_list = []
             id_compatibilidad_list = []
-            def cargar_marca1_combobox():
-                # Obtener todas las marcas de la base de datos
-                marcas = self.controlador.obtener_marcas()  # Devuelve una lista de tuplas (id_marca, nombre)
-                if marcas:
-                    marca1_entry["values"] = [f"{id_marca} - {nombre_marca}" for id_marca, nombre_marca in marcas]
-                    # Seleccionar la marca actual del producto
-                    for id_marca, nombre_marca in marcas:
-                        if id_marca == producto[1]:  # Comparar con el ID de la marca del producto
-                            marca1_var.set(f"{id_marca} - {nombre_marca}")
-                            break
-                else:
-                    marca1_entry["values"] = []
-                    messagebox.showwarning("Advertencia", "No se encontraron marcas registradas.")
-                
-            def actualizar_modelos1(i, event=None):
-                # Limpiar el valor del modelo al actualizar la marca
-                modelo1_var_list[i].set("")
-                
-                # Obtener la marca seleccionada
-                marca_seleccionada = marca1_var_list[i].get()
-                if not marca_seleccionada:
-                    return
 
-                # Obtener el ID de la marca seleccionada
-                id_marca = int(marca_seleccionada.split(" - ")[0])
-
-                # Obtener los modelos asociados a la marca seleccionada
-                modelos = self.controlador.obtener_modelos(id_marca)
-                if modelos:
-                    modelo1_entry_list[i]["values"] = [f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos]
-                    modelo1_entry_list[i].state(["!disabled"])
-                else:
-                    modelo1_entry_list[i]["values"] = []
-                    modelo1_entry_list[i].state(["disabled"])
-            def actualizar_modelos2(i, event=None):
-                # Limpiar el valor del modelo al actualizar la marca
-                modelo1_var_list[i].set(modelo1_var_list[i].get())
-                
-                # Obtener la marca seleccionada
-                marca_seleccionada = marca1_var_list[i].get()
-                if not marca_seleccionada:
-                    return
-
-                # Obtener el ID de la marca seleccionada
-                id_marca = int(marca_seleccionada.split(" - ")[0])
-
-                # Obtener los modelos asociados a la marca seleccionada
-                modelos = self.controlador.obtener_modelos(id_marca)
-                if modelos:
-                    modelo1_entry_list[i]["values"] = [f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos]
-                    modelo1_entry_list[i].state(["!disabled"])
-                else:
-                    modelo1_entry_list[i]["values"] = []
-                    modelo1_entry_list[i].state(["disabled"])
-                         
             editar_window = Toplevel(self.root)
             editar_window.title(f"Editar Producto - {producto[1]} {producto[2]} {producto[3]}")
             editar_window.geometry("800x600")
@@ -1068,178 +1054,179 @@ class ProductoVista:
             altura1_entry = ttk.Entry(dimensiones_frame)
             altura1_entry.insert(0, producto[14])
             altura1_entry.grid(row=2, column=1, padx=5, pady=5)
+
+            
+            
             if compatibilidad:
-                x = 1
+
                 marcas_frame = Frame(contenidoa_frame)
                 marcas_frame.pack(fill="x", padx=10, pady=10)
                 Label(marcas_frame, text="Compatible con:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
                 print("AAA")
                 i = 0
                 for compatible in compatibilidad:
+
+                    compa_frame = Frame(contenidoa_frame)
+                    compa_frame.pack(fill="x", padx=10, pady=10)
+
                     # Crear variables independientes para cada iteración
                     id_compatibilidad_list.append(compatible[7])
-                    marca1_var = StringVar()
-                    modelo1_var = StringVar()
-
-                    marca = f"{compatible[0]} - {compatible[1]}" if compatible[1] is not None else ""
-                    modelo = f"{compatible[2]} - {compatible[3]}" if compatible[3] is not None else ""
-
-
-                    # Inicializar valores del Combobox
-                    marca1_var.set(marca)
-                    modelo1_var.set(modelo)
-
-                    marca1_var_list.append(marca1_var)
-                    modelo1_var_list.append(modelo1_var)
-
-                    # Etiqueta y Combobox para Marca
-                    ttk.Label(marcas_frame, text="Marca:", font=("Arial", 10, "bold")).grid(row=0 + x, column=0, padx=5, pady=5, sticky="w")
-                    marca1_entry = ttk.Combobox(marcas_frame, state="readonly", textvariable=marca1_var_list[i])
-                    marca1_entry.grid(row=0 + x, column=1, padx=5, pady=5)
-                    
-                    marca1_entry_list.append(marca1_entry)
-
-                    # Etiqueta y Combobox para Modelo
-                    ttk.Label(marcas_frame, text="Modelo:", font=("Arial", 10, "bold")).grid(row=0 + x, column=2, padx=5, pady=5, sticky="w")
-                    modelo1_entry = ttk.Combobox(marcas_frame, state="readonly", textvariable=modelo1_var_list[i])
-                    modelo1_entry.grid(row=0 + x, column=3, padx=5, pady=5)
-
-                    modelo1_entry_list.append(modelo1_entry)
-
+                    Label(compa_frame, text=f"{compatible[1]} - {compatible[3]}"  if compatible[3] else compatible[1], font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
+                    ttk.Button(compa_frame, text="Eliminar Compatibilidad", command=lambda id=compatible[7]: eliminar_compatibilidad(id)).grid(row=0, column=1)
                     # Campos adicionales
-                    ttk.Label(marcas_frame, text="Cilindrada:", font=("Arial", 10, "bold")).grid(row=0 + x, column=4, padx=5, pady=5, sticky="w")
-                    cilindrada1_entry = ttk.Entry(marcas_frame)
+                    ttk.Label(compa_frame, text="Cilindrada:", font=("Arial", 10, "bold")).grid(row=1, column=0, padx=5, pady=5, sticky="w")
+                    cilindrada1_entry = ttk.Entry(compa_frame)
                     cilindrada1_entry.insert(0, compatible[4] if compatible[4] is not None else "")
-                    cilindrada1_entry.grid(row=0 + x, column=5, padx=5, pady=5)
+                    cilindrada1_entry.grid(row=1, column=1, padx=5, pady=5)
                     cilindrada_entry_list.append(cilindrada1_entry)
 
-                    ttk.Label(marcas_frame, text="Año 1:", font=("Arial", 10, "bold")).grid(row=1 + x, column=0, padx=5, pady=5, sticky="w")
-                    año11_entry = ttk.Entry(marcas_frame)
+                    ttk.Label(compa_frame, text="Año 1:", font=("Arial", 10, "bold")).grid(row=1, column=2, padx=5, pady=5, sticky="w")
+                    año11_entry = ttk.Entry(compa_frame)
                     año11_entry.insert(0, compatible[5] if compatible[5] is not None else "")
-                    año11_entry.grid(row=1 + x, column=1, padx=5, pady=5)
+                    año11_entry.grid(row=1, column=3, padx=5, pady=5)
                     año_1_entry_list.append(año11_entry)
 
-                    ttk.Label(marcas_frame, text="Año 2:", font=("Arial", 10, "bold")).grid(row=1 + x, column=2, padx=5, pady=5, sticky="w")
-                    año21_entry = ttk.Entry(marcas_frame)
+                    ttk.Label(compa_frame, text="Año 2:", font=("Arial", 10, "bold")).grid(row=1, column=4, padx=5, pady=5, sticky="w")
+                    año21_entry = ttk.Entry(compa_frame)
                     año21_entry.insert(0, compatible[6] if compatible[6] is not None else "")
-                    año21_entry.grid(row=1 + x, column=3, padx=5, pady=5)
+                    año21_entry.grid(row=1, column=5, padx=5, pady=5)
                     año_2_entry_list.append(año21_entry)
                     
-                    # Configurar las marcas y modelos
-                    cargar_marca1_combobox()
-                    actualizar_modelos2(i)
-                    marca1_entry.bind("<<ComboboxSelected>>", lambda event, i=i: actualizar_modelos1(i, event))
-                    
                     i += 1
-                    x += 2
+
+
+            def agregar_compatibilidad_vista():
+
+                def cargar_marca_add_compatibilicad_combobox():
+                    # Obtener marcas desde la base de datos
+                    modelos = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
+                    if modelos:
+                        compatibilidad_add_marcas_combobox["values"] = [f"{id_marca} - {nombre_marca}" for id_marca, nombre_marca in modelos]
+                    else:
+                        compatibilidad_add_marcas_combobox["values"] = []
+                        messagebox.showwarning("Advertencia", "No se encontraron modelos registrados.")
+
+                def actualizar_modelos_add_compatibilidad(event=None):
+                    """Actualiza los modelos según la marca seleccionada para compatibilidad."""
+                    marca_seleccionada = compatibilidad_add_marcas_combobox.get()
+                    if not marca_seleccionada:
+                        return
+                    id_marca = int(marca_seleccionada.split(" - ")[0])
+                    modelos = self.controlador.obtener_modelos(id_marca)
+                    if modelos:
+                        compatibilidad_add_modelo_combobox["values"] = [
+                            f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos
+                        ]
+                        compatibilidad_add_modelo_combobox.state(["!disabled"])
+                    else:
+                        compatibilidad_add_modelo_combobox["values"] = []
+                        compatibilidad_add_modelo_combobox.state(["disabled"])
+                        messagebox.showwarning("Advertencia", "No se encontraron modelos asociados.")
+
+                    compatibilidad_add_modelo_combobox.set("")
+
+                def agregar_compatibilidad_funcion():
+                
+                    marca_seleccionada = compatibilidad_add_marcas_combobox.get()
+                    modelo_seleccionado = compatibilidad_add_modelo_combobox.get()
+                    if not marca_seleccionada:
+                        return messagebox.showwarning("Advertencia", "Seleccione marca.")
+                    else:
+                        id_marca = int(marca_seleccionada.split(" - ")[0])
+                    if modelo_seleccionado:
+                        id_modelo = int(modelo_seleccionado.split(" - ")[0])
+                    else:
+                        id_modelo = None
+                    
+
+                    año1 = compatibilidad_add_año1_entry.get()
+                    año2 = compatibilidad_add_año2_entry.get()
+                    cilindrada = float(compatibilidad_add_cilindrada_entry.get()) if compatibilidad_add_cilindrada_entry.get() else None
 
                     
-            def actualizar_producto_en_base():
-                # Obtener los valores del formulario
-                i = 0
-                id_producto = producto[9]
-                for compat in id_compatibilidad_list:
-                    marca_seleccionada = marca1_entry_list[i].get()
-                    
-                    # Manejo de la cilindrada
-                    cilindrada = cilindrada_entry_list[i].get()
-                    cilindrada = float(cilindrada) if cilindrada and cilindrada not in ["", None] else None
-
-                    # Manejo de los años
-                    try:
-                        año1 = int(año_1_entry_list[i].get()) if año_1_entry_list[i].get() not in ["", "No disponible"] else None
-                    except ValueError:
-                        año1 = None
-
-                    try:
-                        año2 = int(año_2_entry_list[i].get()) if año_2_entry_list[i].get() not in ["", "No disponible"] else None
-                    except ValueError:
-                        año2 = None
-
-                    # Si ambos años están vacíos, asignarles None
-                    if año1 == "" and año2 == "":
-                        año1, año2 = None, None  # Ambos vacíos
-                    elif año1 is None and año2 is not None:
-                        año1 = año2  # Si falta año1, usar año2
-                    elif año2 is None and año1 is not None:
-                        año2 = año1  # Si falta año2, usar año1
-                    elif año1 is not None and año2 is not None and año1 > año2:
+                    if not año1 and not año2:
+                        año1, año2 = None, None  # Ningún valor ingresado
+                    elif not año1:
+                        año2 = int(año2)
+                        año1 = año2  # Si año1 está vacío, se iguala a año2
+                    elif not año2:
+                        año1 = int(año1)
+                        año2 = año1
+                    elif año1 > año2:
                         return messagebox.showwarning("Advertencia", "El año 1 debe ser menor al año 2.")
-                    
-                    # Manejo de la marca seleccionada
-                    if marca_seleccionada and marca_seleccionada != "":
-                        marca_seleccionada = int(marca_seleccionada.split(" - ")[0]) 
                     else:
-                        marca_seleccionada = None
+                        año1 = int(año1)
+                        año2 = int(año2)
 
-                    # Manejo del modelo seleccionado
-                    modelo_seleccionado = modelo1_entry_list[i].get()
-                    if modelo_seleccionado and modelo_seleccionado != "":
-                        modelo_seleccionado = int(modelo_seleccionado.split(" - ")[0]) 
-                    else:
-                        modelo_seleccionado = None
+                    self.controlador.agregar_compatibilidad_producto(id_producto, año1, año2, id_marca, id_modelo, cilindrada)
+                    try:
+                        self.buscar_producto()
+                    except Exception:
+                        None
+                    try:
+                        self.buscar_producto_marca()
+                    except Exception:
+                        None
+                    try:
+                        self.buscar_product()
+                    except Exception:
+                        None
+                    try:
+                        editar_window.destroy()
+                        add_compatibilidad.destroy()
+                        actualizar_producto()  # Vuelve a cargar la vista con las compatibilidades actualizadas
+                    except Exception as e:
+                        None
+            
+                
+                add_compatibilidad = Toplevel(self.root)
+                add_compatibilidad.title(f"Agregar Compatibilidad - {producto1_entry.get()}")
+                add_compatibilidad.geometry("520x210")
 
-                    # Actualización de compatibilidad
-                    self.controlador.actualizar_compatibilidad(
-                        marca_seleccionada if marca_seleccionada else None,
-                        modelo_seleccionado if modelo_seleccionado else None,
-                        cilindrada if cilindrada else None,
-                        año1 if año1 else None,
-                        año2 if año2 else None,
-                        id_compatibilidad_list[i]
-                    )
-                    i += 1
+                add_compatibilidad.resizable(False, False)
+                add_compatibilidad.attributes("-fullscreen", False)
 
-                if not producto1_entry.get():
-                    messagebox.showwarning("Advertencia", "Debe agregar un nombre al producto.")
-                    return
-                if not codigo1_entry.get():
-                    messagebox.showwarning("Advertencia", "Debe agregar un código del producto.")
-                    return
-                if not precio1_entry.get():
-                    messagebox.showwarning("Advertencia", "Debe agregar un precio al producto.")
-                    return
-                if not costo1_entry.get():
-                    messagebox.showwarning("Advertencia", "Debe agregar un costo al producto.")
-                    return
-                producto_nombre = producto1_entry.get()
-                descripcion = descripcion1_entry.get()
-                codigo = codigo1_entry.get()
-                precio = precio1_entry.get()
-                costo = costo1_entry.get()
-                largo = largo1_entry.get()
-                if largo == "No disponible":
-                    largo = None
-                else:
-                    largo = float(largo)
-                ancho = ancho1_entry.get()
-                if ancho == "No disponible":
-                    ancho = None
-                else:
-                    ancho = float(ancho)
-                altura = altura1_entry.get()
-                if altura == "No disponible":
-                    altura = None
-                else:
-                    altura = float(altura)
+                add_compatibilidad_frame = Frame(add_compatibilidad)
+                add_compatibilidad_frame.pack(fill="x", padx=10, pady=10)
 
-                # Intentar actualizar el producto
-                datos_actualizados = {
-                    "id_producto": id_producto,
-                    "producto": producto_nombre,
-                    "descripcion": descripcion if descripcion else None,
-                    "codigo": codigo,
-                    "precio": float(precio),
-                    "costo": float(costo),
-                    "largo": largo if largo else None,
-                    "ancho": ancho if ancho else None,
-                    "altura": altura if altura else None
-                }
+                ttk.Label(add_compatibilidad_frame, text=f"Agregar Compatibilidad al Producto: {producto1_entry.get()} - {codigo1_entry.get()}").grid(row=0, column=0, columnspan=4, pady=10)
+            
+                ttk.Label(add_compatibilidad_frame, text="Marca:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+                compatibilidad_add_marcas_combobox = ttk.Combobox(add_compatibilidad_frame, state="readonly")
+                compatibilidad_add_marcas_combobox.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+                cargar_marca_add_compatibilicad_combobox()
 
-                # Llamar al método del controlador
-                self.controlador.actualizar_producto(datos_actualizados)
-                ubicacion_window.destroy()
-                editar_window.destroy()  # Cerrar la ventana de edición
+                compatibilidad_add_marcas_combobox.bind("<<ComboboxSelected>>", actualizar_modelos_add_compatibilidad)
+
+                ttk.Label(add_compatibilidad_frame, text="Modelo:").grid(row=1, column=2, padx=5, pady=5, sticky="w")
+                compatibilidad_add_modelo_combobox = ttk.Combobox(add_compatibilidad_frame, state="readonly")
+                compatibilidad_add_modelo_combobox.grid(row=1, column=3, padx=5, pady=5, sticky="w")
+                compatibilidad_add_modelo_combobox.state(["disabled"])
+
+                ttk.Label(add_compatibilidad_frame, text="Año 1:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+                compatibilidad_add_año1_entry = ttk.Entry(add_compatibilidad_frame)
+                compatibilidad_add_año1_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+
+                ttk.Label(add_compatibilidad_frame, text="Año 2:").grid(row=2, column=2, padx=5, pady=5, sticky="w")
+                compatibilidad_add_año2_entry = ttk.Entry(add_compatibilidad_frame)
+                compatibilidad_add_año2_entry.grid(row=2, column=3, padx=5, pady=5, sticky="w")
+
+                ttk.Label(add_compatibilidad_frame, text="Cilindrada:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+                compatibilidad_add_cilindrada_entry = ttk.Entry(add_compatibilidad_frame)
+                compatibilidad_add_cilindrada_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+
+                agregar_compatibilidad_add_button = ttk.Button(
+                    add_compatibilidad_frame, 
+                    text="Agregar Compatibilidad", 
+                    command=agregar_compatibilidad_funcion
+                )
+                agregar_compatibilidad_add_button.grid(row=4, column=0, columnspan=4, pady=10, sticky="w")
+
+
+            def eliminar_compatibilidad(id):
+
+                self.controlador.eliminar_compatibilidad(id)
+
                 try:
                     self.buscar_producto()
                 except Exception:
@@ -1248,16 +1235,129 @@ class ProductoVista:
                     self.buscar_producto_marca()
                 except Exception:
                     None
+
                 try:
                     self.buscar_product()
                 except Exception:
                     None
+                try:
+                    editar_window.destroy()
+                    actualizar_producto()  # Vuelve a cargar la vista con las compatibilidades actualizadas
+                except Exception as e:
+                    None
+                
+            def actualizar_producto_en_base():
+                try:
+                    # Obtener los valores del formulario
+                    i = 0
+                    id_producto = producto[9]
+                    for compat in id_compatibilidad_list:
+                        
+                        # Manejo de la cilindrada
+                        cilindrada = cilindrada_entry_list[i].get()
+                        cilindrada = float(cilindrada) if cilindrada and cilindrada not in ["", None] else None
+
+                        # Manejo de los años
+                        try:
+                            año1 = int(año_1_entry_list[i].get()) if año_1_entry_list[i].get() not in ["", "No disponible"] else None
+                        except ValueError:
+                            año1 = None
+
+                        try:
+                            año2 = int(año_2_entry_list[i].get()) if año_2_entry_list[i].get() not in ["", "No disponible"] else None
+                        except ValueError:
+                            año2 = None
+
+                        # Si ambos años están vacíos, asignarles None
+                        if año1 == "" and año2 == "":
+                            año1, año2 = None, None  # Ambos vacíos
+                        elif año1 is None and año2 is not None:
+                            año1 = año2  # Si falta año1, usar año2
+                        elif año2 is None and año1 is not None:
+                            año2 = año1  # Si falta año2, usar año1
+                        elif año1 is not None and año2 is not None and año1 > año2:
+                            return messagebox.showwarning("Advertencia", "El año 1 debe ser menor al año 2.")
+                        
+
+                        # Actualización de compatibilidad
+                        self.controlador.actualizar_compatibilidad(
+                            cilindrada if cilindrada else None,
+                            año1 if año1 else None,
+                            año2 if año2 else None,
+                            id_compatibilidad_list[i]
+                        )
+                        i += 1
+
+                    if not producto1_entry.get():
+                        messagebox.showwarning("Advertencia", "Debe agregar un nombre al producto.")
+                        return
+                    if not codigo1_entry.get():
+                        messagebox.showwarning("Advertencia", "Debe agregar un código del producto.")
+                        return
+                    if not precio1_entry.get():
+                        messagebox.showwarning("Advertencia", "Debe agregar un precio al producto.")
+                        return
+                    if not costo1_entry.get():
+                        messagebox.showwarning("Advertencia", "Debe agregar un costo al producto.")
+                        return
+                    producto_nombre = producto1_entry.get()
+                    descripcion = descripcion1_entry.get()
+                    codigo = codigo1_entry.get()
+                    precio = precio1_entry.get()
+                    costo = costo1_entry.get()
+                    largo = largo1_entry.get()
+                    if largo == "No disponible":
+                        largo = None
+                    else:
+                        largo = float(largo)
+                    ancho = ancho1_entry.get()
+                    if ancho == "No disponible":
+                        ancho = None
+                    else:
+                        ancho = float(ancho)
+                    altura = altura1_entry.get()
+                    if altura == "No disponible":
+                        altura = None
+                    else:
+                        altura = float(altura)
+
+                    # Intentar actualizar el producto
+                    datos_actualizados = {
+                        "id_producto": id_producto,
+                        "producto": producto_nombre,
+                        "descripcion": descripcion if descripcion else None,
+                        "codigo": codigo,
+                        "precio": float(precio),
+                        "costo": float(costo),
+                        "largo": largo if largo else None,
+                        "ancho": ancho if ancho else None,
+                        "altura": altura if altura else None
+                    }
+
+                    # Llamar al método del controlador
+                    self.controlador.actualizar_producto(datos_actualizados)
+                    ubicacion_window.destroy()
+                    editar_window.destroy()  # Cerrar la ventana de edición
+                    try:
+                        self.buscar_producto()
+                    except Exception:
+                        None
+                    try:
+                        self.buscar_producto_marca()
+                    except Exception:
+                        None
+                    try:
+                        self.buscar_product()
+                    except Exception:
+                        None
+                except Exception as e:
+                    return messagebox.showerror("Error", f"No se pudo actualizar el producto: {e}")
             # Llamar a las funciones de inicialización
             
             boton_frame = Frame(contenidoa_frame)
             boton_frame.pack(fill="x", padx=3, pady=10)
-            ttk.Button(boton_frame, text="Editar Producto", command=actualizar_producto_en_base).grid(row=0, column=4)
-
+            ttk.Button(boton_frame, text="Editar Producto", command=actualizar_producto_en_base).grid(row=0, column=0)
+            ttk.Button(boton_frame, text="Agregar Compatibilidad", command=agregar_compatibilidad_vista).grid(row=0, column=1)
             
 
         def eliminar_producto():
@@ -1325,7 +1425,7 @@ class ProductoVista:
     def crear_pestaña_busqueda(self):
         # Campo de búsqueda
         ttk.Label(self.tab_busqueda, text="Buscar Producto:").pack(padx=5, pady=5)
-        self.busqueda_entry = ttk.Entry(self.tab_busqueda)
+        self.busqueda_entry = ttk.Entry(self.tab_busqueda, width=65)
         self.busqueda_entry.pack(padx=5, pady=5)
 
         self.buscar_button = ttk.Button(self.tab_busqueda, text="Buscar", command=self.buscar_producto)
@@ -2079,6 +2179,7 @@ class ProductoVista:
             self.buscar_product()
         except Exception:
             None
+
 # Controlador: Lógica para manejar interacciones
 class ProductoControlador:
     def __init__(self, vista):
@@ -2113,7 +2214,6 @@ class ProductoControlador:
 
     def eliminar_producto(self, id):
         try:
-            
             self.modelo.eliminar(id)
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo eliminar el producto: {e}")
@@ -2131,13 +2231,21 @@ class ProductoControlador:
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo actualizar el producto: {e}")
 
-    def actualizar_compatibilidad(self, marca, modelo, cilindrada, año0, año1, id):
+    def eliminar_compatibilidad(self, id):
         try:
-            self.modelo.actualizar_compatibilidad(
-                marca, modelo, cilindrada, año0, año1, id
+            self.modelo.eliminar_compatibilidad(
+                id
             )
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo registrar el producto: {e}")
+
+    def actualizar_compatibilidad(self, cilindrada, año0, año1, id):
+        try:
+            self.modelo.actualizar_compatibilidad(
+                cilindrada, año0, año1, id
+            )
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo actualizar el producto: {e}")
 
     def guardar_marcas(self, datos):
         try:
