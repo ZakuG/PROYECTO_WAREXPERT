@@ -68,17 +68,15 @@ class ProductoModelo:
             self.conn.rollback()
             raise e
 
-    def agregar_marca(self, nombre, imagenes):
+    def agregar_marca(self, nombre):
         try:
-            if not imagenes:
-                imagenes = None
-                self.cursor.execute("INSERT INTO Marcas (nombre, imagen) VALUES (%s, %s)", (nombre, imagenes))
-                self.conn.commit()
-            else:
+            self.cursor.execute("INSERT INTO Marcas (nombre) VALUES (%s)", (nombre))
+            self.conn.commit()
+            """else:
                 with open(imagenes[0], "rb") as imagen_file:
                     imagen_binaria = imagen_file.read()
                 self.cursor.execute("INSERT INTO Marcas (nombre, imagen) VALUES (%s, %s)", (nombre, imagen_binaria))
-                self.conn.commit()
+                self.conn.commit()"""
         except Exception as e:
             self.conn.rollback()
             raise e
@@ -1730,7 +1728,7 @@ class ProductoVista:
         
         # Obtener el ID de la marca seleccionada
         id_marca = self.marcas_diccionario.get(marca_seleccionada)
-        self.modelo = ProductoModelo()
+        """self.modelo = ProductoModelo()
         logo = self.modelo.buscar_logo_marca(id_marca)
         if logo[0]:
             try:
@@ -1751,7 +1749,7 @@ class ProductoVista:
         else:
             if hasattr(self, "logo_label") and self.logo_label:
                 self.logo_label.destroy()
-                self.logo_label = None
+                self.logo_label = None"""
 
         # Obtener los modelos asociados a la marca
         modelos = self.controlador.obtener_modelos(id_marca)  # Devuelve lista de tuplas (id_modelo, nombre)
@@ -2060,7 +2058,7 @@ class ProductoVista:
             # Muestra la primera imagen
             mostrar_imagen(imagen_actual[0])
         
-        try:
+        """try:
             logo = self.modelo.buscar_logo(id_compatibilidad)
             if logo[0]:
                 try:
@@ -2077,7 +2075,7 @@ class ProductoVista:
                 except Exception as e:
                     Label(marca_frame, text="Logo no disponible", font=("Arial", 10, "italic", "bold"), bg="beige", fg="red").grid(row=0, column=2, padx=10, sticky="w")
         except Exception:
-            None
+            None"""
         detalles_window.mainloop()
 
     def crear_pestaña_marca(self):
@@ -2086,30 +2084,26 @@ class ProductoVista:
         self.nombre_marca_entry = ttk.Entry(self.tab_marca)
         self.nombre_marca_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.tab_marca, text="Logo:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        """ttk.Label(self.tab_marca, text="Logo:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.imagenes_marcas_Entry = []
         self.imagenes_button = tk.Button(self.tab_marca, text="Cargar Logo", command=self.cargar_imagenes_marca, bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
                                         activeforeground="beige", font=("Arial", 10, "bold"))
-        self.imagenes_button.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        self.imagenes_button.grid(row=1, column=1, padx=5, pady=5, sticky="w")"""
 
         # Botón para guardar
         self.guardar_button = tk.Button(self.tab_marca, text="Guardar", command=self.guardar_marcas, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold"))
         self.guardar_button.grid(row=2, column=0, columnspan=2, pady=10)
 
-    def cargar_imagenes_marca(self):
+    """def cargar_imagenes_marca(self):
         files = filedialog.askopenfilenames(filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg")])
         self.imagenes_marcas_Entry = files
-        messagebox.showinfo("Imágenes cargadas", f"Se cargo {len(files)} imágen.")
+        messagebox.showinfo("Imágenes cargadas", f"Se cargo {len(files)} imágen.")"""
 
     def guardar_marcas(self):
-        datos = {
-            "nombre": self.nombre_marca_entry.get(),
-            "imagenes": self.imagenes_marcas_Entry
-        }
+        datos = self.nombre_marca_entry.get()
         self.controlador.guardar_marcas(datos)
         self.nombre_marca_entry.delete(0, END)  # Limpia el campo de texto
-        self.imagen_marca_entry = []
         try:
             self.cargar_marca_combobox2()
             self.actualizar_modelos2()
@@ -2465,7 +2459,7 @@ class ProductoControlador:
     def guardar_marcas(self, datos):
         try:
             self.modelo.agregar_marca(
-                datos["nombre"], datos["imagenes"]
+                datos
             )
             messagebox.showinfo("Éxito", "Marca registrada correctamente.")
         except Exception as e:
