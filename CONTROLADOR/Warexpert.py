@@ -75,34 +75,41 @@ class ProductoModelo:
                 self.cursor.execute("INSERT INTO Marcas (nombre, imagen) VALUES (%s, %s)", (nombre, imagenes))
                 self.conn.commit()
             else:
-                self.cursor.execute("INSERT INTO Marcas (nombre, imagen) VALUES (%s, %s)", (nombre, imagenes[0]))
+                with open(imagenes[0], "rb") as imagen_file:
+                    imagen_binaria = imagen_file.read()
+                self.cursor.execute("INSERT INTO Marcas (nombre, imagen) VALUES (%s, %s)", (nombre, imagen_binaria))
                 self.conn.commit()
         except Exception as e:
             self.conn.rollback()
             raise e
         
-    def agregar_modelo(self, nombre, marca, imagen):
+    def agregar_modelo(self, nombre, marca):
         try:
-            # Verifica si se proporciona una imagen
-            imagen_dato = imagen[0] if imagen else None
+    
 
-            # Ejecuta la consulta con la imagen o None
             self.cursor.execute(
-                "INSERT INTO Modelo (nombre, marca, imagen) VALUES (%s, %s, %s)", 
-                (nombre, marca, imagen_dato)
-            )
+            "INSERT INTO Modelo (nombre, marca) VALUES (%s, %s)", 
+            (nombre, marca))
             self.conn.commit()
-
+            """else:
+                with open(imagen[0], "rb") as imagen_file:
+                        imagen_binaria = imagen_file.read()
+                # Ejecuta la consulta con la imagen o None
+                self.cursor.execute(
+                    "INSERT INTO Modelo (nombre, marca, imagen) VALUES (%s, %s, %s)", 
+                    (nombre, marca, imagen_binaria)
+                )
+                self.conn.commit()"""
         except Exception as e:
             # En caso de error, revierte la transacción y lanza la excepción
             self.conn.rollback()
             raise e
     def buscar_marca(self):
-        self.cursor.execute("SELECT id_marca, nombre FROM marcas")
+        self.cursor.execute("SELECT id_marca, nombre FROM marcas order by nombre")
         return self.cursor.fetchall()
     
     def buscar_modelo(self, id):
-        self.cursor.execute(f"SELECT id_modelo, nombre FROM modelo where marca={id}")
+        self.cursor.execute(f"SELECT id_modelo, nombre FROM modelo where marca={id} order by nombre")
         return self.cursor.fetchall()
 
     def buscar_producto(self, nombre):
@@ -158,7 +165,8 @@ class ProductoModelo:
                                     pr.id_producto=p.id_producto
                                 
                                 WHERE 
-                                    p.cantidad_total>0 and {where_clause}
+                                    p.cantidad_total>0 and {where_clause} ORDER BY 
+                                m.nombre, mo.nombre, p.nombre;
                         """
             # Ejecuta la consulta
             self.cursor.execute(consulta, tuple(parametros))
@@ -229,7 +237,9 @@ class ProductoModelo:
                                 on 
                                     pr.id_producto=p.id_producto 
                                 WHERE 
-                                    p.cantidad_total>0 and {where_clause}
+                                    p.cantidad_total>0 and {where_clause} 
+                                ORDER BY 
+                                    m.nombre, mo.nombre, p.nombre;
                         """
 
             # Ejecuta la consulta
@@ -296,6 +306,8 @@ class ProductoModelo:
                     d.id_producto=p.id_producto
                 WHERE 
                     {where_clause}
+                ORDER BY 
+                    m.nombre, mo.nombre, p.nombre;
             """
 
             # Ejecuta la consulta
@@ -353,6 +365,8 @@ class ProductoModelo:
             LEFT JOIN MARCAS AS M ON M.ID_MARCA = cP.MARCA
             LEFT JOIN MODELO AS MO ON MO.ID_MODELO = cP.MODELO
             WHERE cp.producto = %s and cp.id_compatibilidad_producto != %s
+            ORDER BY 
+                m.nombre, mo.nombre;
         """
         self.cursor.execute(consulta, (id_producto, id_compatibilidad, ))
         return self.cursor.fetchall()
@@ -365,6 +379,8 @@ class ProductoModelo:
             LEFT JOIN MARCAS AS M ON M.ID_MARCA = cP.MARCA
             LEFT JOIN MODELO AS MO ON MO.ID_MODELO = cP.MODELO
             WHERE cp.producto = %s 
+            ORDER BY 
+                m.nombre, mo.nombre
         """
         self.cursor.execute(consulta, (id_producto, ))
         return self.cursor.fetchall()
@@ -379,8 +395,23 @@ class ProductoModelo:
             on cp.marca = m.id_marca
             WHERE cp.id_compatibilidad_producto = %s
         """
-        print("Aaaaq")
+
         self.cursor.execute(consulta, (id_compatibilidad,))
+        # Extraemos solo las rutas de las imágenes de la consulta
+
+
+        return self.cursor.fetchone()
+
+    def buscar_logo_marca(self, id):
+
+        consulta = """
+            SELECT 
+                imagen
+            FROM marcas
+            where id_marca = %s
+        """
+
+        self.cursor.execute(consulta, (id,))
         # Extraemos solo las rutas de las imágenes de la consulta
 
 
@@ -609,6 +640,17 @@ class ProductoVista:
         style.theme_use("clam")
         style.configure("Treeview.Heading", font=("Arial", 10, "bold"), background="yellow", foreground="black")
         style.map("Treeview.Heading", background=[("active", "yellow2")], foreground=[("active", "black")])
+        style.configure("Treeview", 
+                rowheight=25,  # Ajusta la altura de las filas
+                bordercolor="black",  # Color del borde
+                borderwidth=1,  # Ancho del borde
+                background="white",  # Fondo de las filas
+                fieldbackground="white")
+        style.map("Treeview", 
+          background=[("selected", "lightblue")],  # Fondo cuando la fila está seleccionada
+          foreground=[("selected", "black")])
+        style.layout("Custom.Treeview",
+            [('Treeview.treearea', {'sticky': 'nswe'})])
         style.configure("Custom.TFrame", background="#F5F5DC")
         style.configure("TLabel", font=("Arial", 10, "bold"), background="beige")
         style.configure("TEntry", font=("Arial", 10, "bold"), bg="beige")
@@ -725,7 +767,8 @@ class ProductoVista:
         # Obtener marcas desde la base de datos
         modelos = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
         if modelos:
-            self.compatibilidad_marcas_combobox["values"] = [f"{id_marca} - {nombre_marca}" for id_marca, nombre_marca in modelos]
+            self.marcas_diccionario = {nombre_marca: id_marca for id_marca, nombre_marca in modelos}
+            self.compatibilidad_marcas_combobox["values"] = list(self.marcas_diccionario.keys())
         else:
             self.compatibilidad_marcas_combobox["values"] = []
             messagebox.showwarning("Advertencia", "No se encontraron modelos registrados.")
@@ -735,12 +778,16 @@ class ProductoVista:
         marca_seleccionada = self.compatibilidad_marcas_combobox.get()
         if not marca_seleccionada:
             return
-        id_marca = int(marca_seleccionada.split(" - ")[0])
+        id_marca = self.marcas_diccionario.get(marca_seleccionada)
+        if id_marca is None:
+            messagebox.showerror("Error", "La marca seleccionada no es válida.")
+            return
         modelos = self.controlador.obtener_modelos(id_marca)
         if modelos:
-            self.compatibilidad_modelo_combobox["values"] = [
-                f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos
-            ]
+            self.modelos_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
+            self.modelos_diccionario.update({nombre_marca: id_marca for id_marca, nombre_marca in modelos})
+            # Configurar los valores del combobox con solo los nombres
+            self.compatibilidad_modelo_combobox["values"] = list(self.modelos_diccionario.keys())
             self.compatibilidad_modelo_combobox.state(["!disabled"])
         else:
             self.compatibilidad_modelo_combobox["values"] = []
@@ -757,9 +804,9 @@ class ProductoVista:
             if not marca_seleccionada:
                 return messagebox.showwarning("Advertencia", "Seleccione marca.")
             else:
-                id_marca = int(marca_seleccionada.split(" - ")[0])
+                id_marca = self.marcas_diccionario.get(marca_seleccionada)
             if modelo_seleccionado:
-                id_modelo = int(modelo_seleccionado.split(" - ")[0])
+                id_modelo = self.modelos_diccionario.get(modelo_seleccionado)
             else:
                 id_modelo = None
             
@@ -777,7 +824,7 @@ class ProductoVista:
             elif not año2:
                 año1 = int(año1)
                 año2 = año1
-            elif año1 > año2:
+            elif int(año1) > int(año2):
                 return messagebox.showwarning("Advertencia", "El año 1 debe ser menor al año 2.")
             else:
                 año1 = int(año1)
@@ -1101,7 +1148,6 @@ class ProductoVista:
                 marcas_frame = Frame(contenidoa_frame, bg="beige")
                 marcas_frame.pack(fill="x", padx=10, pady=10)
                 Label(marcas_frame, text="Compatible con:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
-                print("AAA")
                 i = 0
                 for compatible in compatibilidad:
 
@@ -1141,27 +1187,29 @@ class ProductoVista:
                     # Obtener marcas desde la base de datos
                     modelos = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
                     if modelos:
-                        compatibilidad_add_marcas_combobox["values"] = [f"{id_marca} - {nombre_marca}" for id_marca, nombre_marca in modelos]
+                        # Agregar opción "Ninguno" con ID None
+                        self.marcas_diccionario={nombre_marca: id_marca for id_marca, nombre_marca in modelos}
+                        compatibilidad_add_marcas_combobox["values"] = list(self.marcas_diccionario.keys())
                     else:
                         compatibilidad_add_marcas_combobox["values"] = []
-                        messagebox.showwarning("Advertencia", "No se encontraron modelos registrados.")
+
 
                 def actualizar_modelos_add_compatibilidad(event=None):
                     """Actualiza los modelos según la marca seleccionada para compatibilidad."""
                     marca_seleccionada = compatibilidad_add_marcas_combobox.get()
                     if not marca_seleccionada:
                         return
-                    id_marca = int(marca_seleccionada.split(" - ")[0])
+                    id_marca = self.marcas_diccionario.get(marca_seleccionada)
                     modelos = self.controlador.obtener_modelos(id_marca)
                     if modelos:
-                        compatibilidad_add_modelo_combobox["values"] = [
-                            f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos
-                        ]
+                        self.modelos_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
+                        self.modelos_diccionario.update({nombre_marca: id_marca for id_marca, nombre_marca in modelos})
+                        compatibilidad_add_modelo_combobox["values"] = list(self.modelos_diccionario.keys())
                         compatibilidad_add_modelo_combobox.state(["!disabled"])
+
                     else:
                         compatibilidad_add_modelo_combobox["values"] = []
                         compatibilidad_add_modelo_combobox.state(["disabled"])
-                        messagebox.showwarning("Advertencia", "No se encontraron modelos asociados.")
 
                     compatibilidad_add_modelo_combobox.set("")
 
@@ -1172,9 +1220,9 @@ class ProductoVista:
                     if not marca_seleccionada:
                         return messagebox.showwarning("Advertencia", "Seleccione marca.")
                     else:
-                        id_marca = int(marca_seleccionada.split(" - ")[0])
+                        id_marca = self.marcas_diccionario.get(marca_seleccionada)
                     if modelo_seleccionado:
-                        id_modelo = int(modelo_seleccionado.split(" - ")[0])
+                        id_modelo = self.modelos_diccionario.get(modelo_seleccionado)
                     else:
                         id_modelo = None
                     
@@ -1226,11 +1274,14 @@ class ProductoVista:
                 add_compatibilidad.resizable(False, False)
                 add_compatibilidad.attributes("-fullscreen", False)
 
+                add_title_compatibilidad_frame = Frame(add_compatibilidad, bg="beige")
+                add_title_compatibilidad_frame.pack(fill="x", padx=10, pady=10)
+
+                ttk.Label(add_title_compatibilidad_frame, text=f"Agregar Compatibilidad al Producto: {producto1_entry.get()} - {codigo1_entry.get()}").grid(row=0, column=0, columnspan=4, pady=10)
+                
                 add_compatibilidad_frame = Frame(add_compatibilidad, bg="beige")
                 add_compatibilidad_frame.pack(fill="x", padx=10, pady=10)
 
-                ttk.Label(add_compatibilidad_frame, text=f"Agregar Compatibilidad al Producto: {producto1_entry.get()} - {codigo1_entry.get()}").grid(row=0, column=0, columnspan=4, pady=10)
-            
                 ttk.Label(add_compatibilidad_frame, text="Marca:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
                 compatibilidad_add_marcas_combobox = ttk.Combobox(add_compatibilidad_frame, state="readonly")
                 compatibilidad_add_marcas_combobox.grid(row=1, column=1, padx=5, pady=5, sticky="w")
@@ -1552,9 +1603,9 @@ class ProductoVista:
 
     def crear_pestaña_busqueda_marca(self):
         # Campo de búsqueda
-        tree_frame_busca_titulo = tk.Frame(self.tab_busqueda_marca, bg="beige")
-        tree_frame_busca_titulo.grid(row=0, column=0, columnspan=2)
-        ttk.Label(tree_frame_busca_titulo, text="Buscar Producto:").grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        self.tree_frame_busca_titulo = tk.Frame(self.tab_busqueda_marca, bg="beige")
+        self.tree_frame_busca_titulo.grid(row=0, column=0, columnspan=2)
+        ttk.Label(self.tree_frame_busca_titulo, text="Buscar Producto:").grid(row=0, column=0, padx=5, pady=5, sticky="ew")
 
         tree_frame_buscar = tk.Frame(self.tab_busqueda_marca, bg="beige")
         tree_frame_buscar.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
@@ -1625,6 +1676,7 @@ class ProductoVista:
         y_scroll.config(command=self.resultados_marca1_tree.yview)
 
         # Ajustar tamaño dinámico de columnas
+        
         self.tab_busqueda_marca.grid_rowconfigure(6, weight=1)
         self.tab_busqueda_marca.grid_columnconfigure(1, weight=1)
         tree_frame_marca.grid_rowconfigure(0, weight=1)
@@ -1641,9 +1693,11 @@ class ProductoVista:
         cilindrada = self.cilindrada_marca_entry.get()
 
         # Convertir marca y modelo a IDs (si están seleccionados)
-        id_marca = int(marca_seleccionada.split(" - ")[0]) if marca_seleccionada else None
-        id_modelo = int(modelo_seleccionado.split(" - ")[0]) if modelo_seleccionado else None
-
+        id_marca = self.marcas_diccionario.get(marca_seleccionada)
+        try:
+            id_modelo = self.modelos_diccionario.get(modelo_seleccionado)
+        except Exception:
+            id_modelo=None
         # Realizar búsqueda con filtros
         resultados = self.controlador.buscar_producto_marca(id_marca, id_modelo, año, cilindrada)
 
@@ -1660,29 +1714,55 @@ class ProductoVista:
         # Obtener marcas desde la base de datos
         modelos = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
         if modelos:
-            self.marcas2_combobox["values"] = [f"{id_marca} - {nombre_marca}" for id_marca, nombre_marca in modelos]
+
+            self.marcas_diccionario = {nombre_marca: id_marca for id_marca, nombre_marca in modelos}
+            self.marcas2_combobox["values"] = list(self.marcas_diccionario.keys())
         else:
             self.marcas2_combobox["values"] = []
             messagebox.showwarning("Advertencia", "No se encontraron modelos registrados.")
 
     def actualizar_modelos2(self, event=None):
         """Actualiza el combobox de modelos basado en la marca seleccionada y limpia la selección del modelo."""
+        
         marca_seleccionada = self.marcas2_combobox.get()
         if not marca_seleccionada:
             return
-
+        
         # Obtener el ID de la marca seleccionada
-        id_marca = int(marca_seleccionada.split(" - ")[0])
+        id_marca = self.marcas_diccionario.get(marca_seleccionada)
+        self.modelo = ProductoModelo()
+        logo = self.modelo.buscar_logo_marca(id_marca)
+        if logo[0]:
+            try:
+                # Convertir los datos binarios en una imagen
+                logo_data = BytesIO(logo[0])
+                logo_img = Image.open(logo_data)
+                logo_img = logo_img.resize((100, 75), Image.LANCZOS)
+                logo_tk = ImageTk.PhotoImage(logo_img)
+                
+                # Crear etiqueta para el logo y agregarla al `marca_frame`
+                logo_label = Label(self.tree_frame_busca_titulo, image=logo_tk, bg="beige")
+                logo_label.image = logo_tk  # Mantener referencia
+                logo_label.grid(row=0, column=2, padx=10, sticky="w")
+            except Exception as e:
+                if hasattr(self, "logo_label") and self.logo_label:
+                    self.logo_label.destroy()
+                    self.logo_label = None
+        else:
+            if hasattr(self, "logo_label") and self.logo_label:
+                self.logo_label.destroy()
+                self.logo_label = None
 
         # Obtener los modelos asociados a la marca
         modelos = self.controlador.obtener_modelos(id_marca)  # Devuelve lista de tuplas (id_modelo, nombre)
         if modelos:
-            self.modelo2_combobox["values"] = [f"{id_modelo} - {nombre_modelo}" for id_modelo, nombre_modelo in modelos]
+            self.modelos_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
+            self.modelos_diccionario.update({nombre_marca: id_marca for id_marca, nombre_marca in modelos})
+            self.modelo2_combobox["values"] = list(self.modelos_diccionario.keys())
             self.modelo2_combobox.state(["!disabled"])
         else:
             self.modelo2_combobox["values"] = []
             self.modelo2_combobox.state(["disabled"])
-            messagebox.showwarning("Advertencia", "No se encontraron modelos asociados a esta marca.")
 
         # Limpiar la selección actual del combobox de modelos
         self.modelo2_combobox.set("")  # Borra la selección actual
@@ -1733,16 +1813,16 @@ class ProductoVista:
         marca_frame = Frame(contenedor, bg="beige")
         marca_frame.pack(fill="x", padx=10, pady=10)
         Label(marca_frame, text="Marca:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
-        Label(marca_frame, text=detalles[0][12], font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
+        Label(marca_frame, text=detalles[0][12] if detalles[0][12] else "No agregado", font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
 
         Label(marca_frame, text="Modelo:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, sticky="w")
-        Label(marca_frame, text=detalles[0][13], font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
+        Label(marca_frame, text=detalles[0][13] if detalles[0][13] else "No agregado", font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
 
         Label(marca_frame, text="Cilindrada:", font=("Arial", 10, "bold"), bg="beige").grid(row=2, column=0, sticky="w")
-        Label(marca_frame, text=detalles[0][14], font=("Arial", 10), bg="beige").grid(row=2, column=1, sticky="w")
+        Label(marca_frame, text=detalles[0][14] if detalles[0][14] else "No agregado", font=("Arial", 10), bg="beige").grid(row=2, column=1, sticky="w")
 
         Label(marca_frame, text="Año:", font=("Arial", 10, "bold"), bg="beige").grid(row=3, column=0, sticky="w")
-        Label(marca_frame, text=f"{detalles[0][15]} - {detalles[0][16]}", font=("Arial", 10), bg="beige").grid(row=3, column=1, sticky="w")
+        Label(marca_frame, text=f"{detalles[0][15]} - {detalles[0][16]}" if detalles[0][15] else "No agregado", font=("Arial", 10), bg="beige").grid(row=3, column=1, sticky="w")
         
         info_frame = Frame(contenedor, bg="beige")
         info_frame.pack(fill="x", padx=10, pady=10)
@@ -1772,20 +1852,56 @@ class ProductoVista:
         Label(precios_frame, text=f"${detalles[0][8]:.2f}", font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
 
         # Dimensiones
+        
         dimensiones_frame = Frame(contenedor, bg="beige")
         dimensiones_frame.pack(fill="x", padx=10, pady=10)
+        if detalles[0][9] != None:
+            if detalles[0][10] and detalles[0][11]:
+                dimension=f"{detalles[0][9]} cm x {detalles[0][10]} cm x {detalles[0][11]} cm (Largo x Ancho x Altura)"
+            elif detalles[0][10]:
+                dimension=f"{detalles[0][9]} cm x {detalles[0][10]} cm (Largo x Ancho)"
+            elif detalles[0][11]:
+                dimension=f"{detalles[0][9]} cm x {detalles[0][11]} cm (Largo x Altura)"
+            else:
+                dimension=f"{detalles[0][9]} cm (Largo)"
+        elif detalles[0][9] == None:
 
-        Label(dimensiones_frame, text="Dimensiones:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
-        Label(dimensiones_frame, text=f"{detalles[0][9]} cm x {detalles[0][10]} cm x {detalles[0][11]} cm", font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
-
+            if detalles[0][10] and detalles[0][11]:
+                dimension=f"{detalles[0][10]} cm x {detalles[0][11]} cm (Ancho x Altura)"
+            elif detalles[0][10]:
+                dimension=f"{detalles[0][10]} cm (Ancho)"
+            elif detalles[0][11]:
+                dimension=f"{detalles[0][11]} cm (Altura)"
+        try:
+            Label(dimensiones_frame, text="Dimensiones:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
+            Label(dimensiones_frame, text=dimension, font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
+        except Exception:
+            Label(dimensiones_frame, text="No agregado", font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
         if compatibilidad:
             compatible_frame = Frame(contenedor, bg="beige")
             compatible_frame.pack(fill="x", padx=10, pady=10)
             Label(compatible_frame, text=f"Compatible con:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
             i=1
             for compatible in compatibilidad:
-                Label(compatible_frame, text=f"- {compatible[0]} {compatible[1]}, Cilindrada: {compatible[2]}, Año: {compatible[3]} - {compatible[4]}" if compatible[1] else 
-                      f"- {compatible[0]}, Cilindrada: {compatible[2]}, Año: {compatible[3]} - {compatible[4]}", font=("Arial", 10, "bold"), bg="beige").grid(row=i, column=0, sticky="w")
+                if compatible[1]:
+                    if compatible[2] and compatible[3]:
+                        texto = f"- {compatible[0]} {compatible[1]}, Cilindrada: {compatible[2]}, Año: {compatible[3]} - {compatible[4]}"
+                    elif compatible[3]:
+                        texto = f"- {compatible[0]} {compatible[1]}, Año: {compatible[3]} - {compatible[4]}"
+                    elif compatible[2]:
+                        texto = f"- {compatible[0]} {compatible[1]}, Cilindrada: {compatible[2]}"
+                    else:
+                        texto = f"- {compatible[0]} {compatible[1]}"
+                else:
+                    if compatible[2] and compatible[3]:
+                        texto = f"- {compatible[0]}, Cilindrada: {compatible[2]}, Año: {compatible[3]} - {compatible[4]}"
+                    elif compatible[3]:
+                        texto = f"- {compatible[0]}, Año: {compatible[3]} - {compatible[4]}"
+                    elif compatible[2]:
+                        texto = f"- {compatible[0]}, Cilindrada: {compatible[2]}"
+                    else:
+                        texto = f"- {compatible[0]}"
+                Label(compatible_frame, text=texto, font=("Arial", 10, "bold"), bg="beige").grid(row=i, column=0, sticky="w")
                 i += 1
 
         i = 1
@@ -1809,7 +1925,7 @@ class ProductoVista:
             id_ubicaciones.append(detalle[17])
             i += 1
 
-        ttk.Label(marca_frame, text="").grid(row=0, column=2, padx=140)  
+        ttk.Label(marca_frame, text="").grid(row=0, column=2, padx=40)  
         
         ttk.Label(marca_frame, text="Seleccione Ubicación:").grid(row=0, column=3, sticky="w")
         ubicaciones_combobox = ttk.Combobox(marca_frame, state="readonly")
@@ -1847,8 +1963,8 @@ class ProductoVista:
                 messagebox.showerror("Error", "No se pudo encontrar la ubicación seleccionada.")
 
         ubicaciones_combobox.bind("<<ComboboxSelected>>", actualizar_cantidad)
-
-        ttk.Label(marca_frame, text="").grid(row=1, column=2, padx=140)  
+        
+        ttk.Label(marca_frame, text="").grid(row=1, column=2, padx=40)  
         ttk.Label(marca_frame, text="Seleccione una Cantidad:").grid(row=1, column=3, sticky="w")
         cantidad_combobox = ttk.Combobox(marca_frame, state="readonly")
         cantidad_combobox.grid(row=1, column=4)
@@ -1881,14 +1997,13 @@ class ProductoVista:
             
                 
            
-        ttk.Label(marca_frame, text="").grid(row=2, column=2, padx=140)
+        ttk.Label(marca_frame, text="").grid(row=2, column=2, padx=40)
         tk.Button(marca_frame, text="Agregar al carrito", command=agregar_al_carrito, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold")).grid(row=2, column=3, columnspan=2)
 
         # Imagen del producto
         self.modelo = ProductoModelo()
-        print(id_compatibilidad)
-        logo = self.modelo.buscar_logo(id_compatibilidad)
+        
         imagenes = self.modelo.buscar_imagenes_producto(id_producto)  # Obtener las imágenes desde la base de datos
         if imagenes:
             imagen_frame = Frame(contenedor, bg="beige")
@@ -1944,28 +2059,25 @@ class ProductoVista:
 
             # Muestra la primera imagen
             mostrar_imagen(imagen_actual[0])
-
-        if logo:
-            print("aa")
-            logo_frame = Frame(contenedor, bg="beige")
-            logo_frame.pack(fill="x", padx=10, pady=10)
-            logo_label = Label(marca_frame, bg="beige")
-            logo_label.pack()
-            try:
-                # Convierte los datos binarios en una imagen
-                logo_data = BytesIO([logo])
-                logo = Image.open(logo_data)
-                logo = logo.resize((50, 50), Image.LANCZOS)
-                logo_tk = ImageTk.PhotoImage(logo)
-                # Actualiza la etiqueta de la imagen
-                logo_label.config(image=logo_tk)
-                logo_label.image = logo_tk  # Mantén la referencia para evitar que se elimine
-                logo_label.pack()
-                # Actualiza la etiqueta del contador
-
-            except Exception as e:
-                None
-
+        
+        try:
+            logo = self.modelo.buscar_logo(id_compatibilidad)
+            if logo[0]:
+                try:
+                    # Convertir los datos binarios en una imagen
+                    logo_data = BytesIO(logo[0])
+                    logo_img = Image.open(logo_data)
+                    logo_img = logo_img.resize((75, 50), Image.LANCZOS)
+                    logo_tk = ImageTk.PhotoImage(logo_img)
+                    
+                    # Crear etiqueta para el logo y agregarla al `marca_frame`
+                    logo_label = Label(marca_frame, image=logo_tk, bg="beige")
+                    logo_label.image = logo_tk  # Mantener referencia
+                    logo_label.grid(row=0, column=2, padx=10, sticky="w")
+                except Exception as e:
+                    Label(marca_frame, text="Logo no disponible", font=("Arial", 10, "italic", "bold"), bg="beige", fg="red").grid(row=0, column=2, padx=10, sticky="w")
+        except Exception:
+            None
         detalles_window.mainloop()
 
     def crear_pestaña_marca(self):
@@ -2022,11 +2134,11 @@ class ProductoVista:
         self.marca_combobox.grid(row=0, column=1, padx=5, pady=5, sticky="w")
         self.cargar_marcas_combobox()
         
-        ttk.Label(self.tab_modelo, text="Imagen:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        """ttk.Label(self.tab_modelo, text="Imagen:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         self.imagen_modelo_entry = []
         self.imagenes_button = tk.Button(self.tab_modelo, text="Cargar Imagen", command=self.cargar_imagenes_modelo, bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
                                         activeforeground="beige", font=("Arial", 10, "bold"))
-        self.imagenes_button.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        self.imagenes_button.grid(row=2, column=1, padx=5, pady=5, sticky="w")"""
 
         # Botón para guardar
         self.guardar_button = tk.Button(self.tab_modelo, text="Guardar", command=self.guardar_modelo, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
@@ -2037,15 +2149,18 @@ class ProductoVista:
         # Obtener marcas desde la base de datos
         marcas = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
         if marcas:
-            self.marca_combobox["values"] = [f"{id_marca} - {nombre}" for id_marca, nombre in marcas]
+
+            self.marcas_diccionario = {nombre_marca: id_marca for id_marca, nombre_marca in marcas}
+            self.marca_combobox["values"] = list(self.marcas_diccionario.keys())
+
         else:
             self.marca_combobox["values"] = []
-            messagebox.showwarning("Advertencia", "No se encontraron marcas registradas.")
 
-    def cargar_imagenes_modelo(self):
+
+    """def cargar_imagenes_modelo(self):
         files = filedialog.askopenfilenames(filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg")])
         self.imagen_modelo_entry = files
-        messagebox.showinfo("Imágenes cargadas", f"Se cargo {len(files)} imágen.")
+        messagebox.showinfo("Imágenes cargadas", f"Se cargo {len(files)} imágen.")"""
 
     def guardar_modelo(self):
         if not self.nombre_modelo_entry.get():
@@ -2057,17 +2172,17 @@ class ProductoVista:
 
         # Obtener id de la marca seleccionada
         marca_seleccionada = self.marca_combobox.get()
-        id_marca = int(marca_seleccionada.split(" - ")[0])
+        id_marca = self.marcas_diccionario.get(marca_seleccionada)
 
         datos = {
             "nombre": self.nombre_modelo_entry.get(),
             "marca": id_marca,
-            "imagenes": self.imagen_modelo_entry
+            #"imagenes": self.imagen_modelo_entry
         }
         self.controlador.guardar_modelo(datos)
         self.nombre_modelo_entry.delete(0, END)  # Limpia el campo de texto
         self.marca_combobox.set('')  # Restablece el combobox
-        self.imagen_modelo_entry = []
+        #self.imagen_modelo_entry = []
         try:
             self.cargar_marca_combobox2()
             self.actualizar_modelos2()
@@ -2106,7 +2221,7 @@ class ProductoVista:
         self.total_label.grid(row=1, column=2, padx=5, pady=5, sticky="w")
 
         # Botón para guardar el carrito
-        self.guardar_carro_button = tk.Button(self.tab_carro, text="Guardar Carro", command=self.guardar_carro, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
+        self.guardar_carro_button = tk.Button(self.tab_carro, text="Guardar Carrito", command=self.guardar_carro, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold"))
         self.guardar_carro_button.grid(row=1, column=3, padx=5, pady=5)
         # Nuevo botón: Eliminar producto seleccionado
@@ -2359,7 +2474,7 @@ class ProductoControlador:
     def guardar_modelo(self, datos):
         try:
             self.modelo.agregar_modelo(
-                datos["nombre"], datos["marca"], datos["imagenes"]
+                datos["nombre"], datos["marca"]
             )
             messagebox.showinfo("Éxito", "Modelo registrado correctamente.")
         except Exception as e:

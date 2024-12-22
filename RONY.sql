@@ -23,15 +23,8 @@ CREATE TABLE Productos (
     id_producto integer AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(255) NOT NULL,
     descripcion varchar(355),
-    año0 integer,
-    año1 integer,
-    marca integer,
-    modelo integer,
-    cilindrada float,
     cantidad_TOTAl integer,
-    codigo_producto varchar(255) NOT NULL,
-    foreign key (modelo) references modelo(id_modelo) ON DELETE CASCADE,
-    foreign key (marca) references marcas(id_marca) ON DELETE CASCADE
+    codigo_producto varchar(255) NOT NULL
 );
 
 create table compatibilidad_producto(
@@ -93,7 +86,8 @@ nombre varchar(60)
 INSERT INTO medio_pago (NOMBRE) VALUES 
 ("Tarjeta de Credito"),
 ("Tarjeta de  Debito"),
-("Efectivo");
+("Efectivo"),
+("Transferencia");
 
 create table carro(
 id_carro integer auto_increment primary key,
