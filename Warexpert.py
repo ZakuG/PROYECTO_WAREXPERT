@@ -6,17 +6,29 @@ import os
 from PIL import Image, ImageTk  # Para manejar las imágenes correctamente
 import mysql.connector
 from io import BytesIO
+from configparser import ConfigParser
+
 
 # Modelo: Interacción con la base de datos
 class ProductoModelo:
     def __init__(self):
+        config = ConfigParser()
+        config.read("db_config.txt")
+
+        # Extraer valores
+        host = config.get("mysql", "host")
+        user = config.get("mysql", "user")
+        password = config.get("mysql", "password")
+        database = config.get("mysql", "database")
+
+        # Establecer conexión con MySQL
         self.conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="1234",  # Cambiar según configuración local
-            database="Warexpert"
+            host=host,
+            user=user,
+            password=password,
+            database=database
         )
-        
+                
         self.cursor = self.conn.cursor()
 
     def agregar_compatibilidad_producto(self, producto_id, año0, año1, marca, modelo, cilindrada):
@@ -70,7 +82,7 @@ class ProductoModelo:
 
     def agregar_marca(self, nombre):
         try:
-            self.cursor.execute("INSERT INTO Marcas (nombre) VALUES (%s)", (nombre))
+            self.cursor.execute("INSERT INTO Marcas (nombre) VALUES (%s)", (nombre,))
             self.conn.commit()
             """else:
                 with open(imagenes[0], "rb") as imagen_file:
@@ -542,12 +554,12 @@ class ProductoModelo:
         self.conn.commit()
 
 
-    def guardar_carro_modelo(self, carrito, id_medio_pago, total):
+    def guardar_carro_modelo(self, carrito, id_medio_pago, total, id_usuario):
         try:
             # Insertar en la tabla `carro`
 
-            query_carro = "INSERT INTO carro (medio_pago, monto) VALUES (%s, %s)"
-            self.cursor.execute(query_carro, (int(id_medio_pago), float(total),))
+            query_carro = "INSERT INTO carro (medio_pago, monto, usuario) VALUES (%s, %s, %s)"
+            self.cursor.execute(query_carro, (int(id_medio_pago), float(total), int(id_usuario),))
             id_carro = self.cursor.lastrowid
 
             # Insertar en la tabla `detalle_carro`
@@ -625,6 +637,59 @@ class ProductoModelo:
             self.conn.rollback()  # Revertir transacciones en caso de error
             raise Exception(f"No se pudo revertir el stock: {e}")
 
+    def obtener_ventas_diarias(self):
+        try:
+            consulta = """
+                SELECT 
+                    u.nombre AS usuario,
+                    SUM(dc.cantidad) AS productos_vendidos,
+                    COUNT(DISTINCT c.id_carro) AS cantidad_ventas,
+                    SUM(c.monto) AS monto_total
+                FROM 
+                    usuario u
+                JOIN 
+                    carro c ON u.id_usuario = c.usuario
+                JOIN 
+                    detalle_carro dc ON c.id_carro = dc.carro
+                WHERE 
+                    DATE(c.fecha) = CURDATE()
+                GROUP BY 
+                    u.id_usuario
+                UNION ALL
+                SELECT 
+                    CASE mp.nombre
+                        WHEN 'Efectivo' THEN 'Total Efectivo'
+                        WHEN 'Tarjeta de Debito' THEN 'Total Débito'
+                        WHEN 'Tarjeta de Credito' THEN 'Total Crédito'
+                        WHEN 'Transferencia' THEN 'Total Transferencia'
+                    END AS usuario,
+                    NULL AS productos_vendidos,
+                    NULL AS cantidad_ventas,
+                    SUM(c.monto) AS monto_total_vendedor
+                FROM 
+                    medio_pago mp
+                JOIN 
+                    carro c ON mp.id_medio_pago = c.medio_pago
+                WHERE 
+                    DATE(c.fecha) = CURDATE()
+                GROUP BY 
+                    mp.nombre
+                UNION ALL
+                SELECT 
+                    'Total General' AS usuario,
+                    NULL AS productos_vendidos,
+                    NULL AS cantidad_ventas,
+                    SUM(c.monto) AS monto_total
+                FROM 
+                    carro c
+                WHERE 
+                    DATE(c.fecha) = CURDATE();
+            """
+            # Ejecuta la consulta
+            self.cursor.execute(consulta)
+            return self.cursor.fetchall()
+        except Exception as e:
+            return None
 
     def cerrar_conexion(self):
         self.cursor.close()
@@ -665,6 +730,8 @@ class ProductoVista:
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill="both", expand=True)
 
+        self.notebook.bind("<<NotebookTabChanged>>", self.actualizar_pestaña)
+
         # Pestaña de registro
         self.tab_registro = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_registro, text="Registrar Producto")
@@ -704,6 +771,9 @@ class ProductoVista:
         self.carrito = []  
         self.total_final = 0.0
 
+        self.tab_detalle = ttk.Frame(self.notebook, style="Custom.TFrame")
+        self.notebook.add(self.tab_detalle, text="Detalle Ventas")
+        self.tab_detalle_venta()
         
 
     def crear_pestaña_registro(self):
@@ -769,7 +839,7 @@ class ProductoVista:
             self.compatibilidad_marcas_combobox["values"] = list(self.marcas_diccionario.keys())
         else:
             self.compatibilidad_marcas_combobox["values"] = []
-            messagebox.showwarning("Advertencia", "No se encontraron modelos registrados.")
+
 
     def actualizar_modelos_compatibilidad(self, event=None):
         """Actualiza los modelos según la marca seleccionada para compatibilidad."""
@@ -790,7 +860,7 @@ class ProductoVista:
         else:
             self.compatibilidad_modelo_combobox["values"] = []
             self.compatibilidad_modelo_combobox.state(["disabled"])
-            messagebox.showwarning("Advertencia", "No se encontraron modelos asociados.")
+
 
         self.compatibilidad_modelo_combobox.set("")
 
@@ -814,6 +884,7 @@ class ProductoVista:
             cilindrada = float(self.compatibilidad_cilindrada_entry.get()) if self.compatibilidad_cilindrada_entry.get() else None
 
             
+            
             if not año1 and not año2:
                 año1, año2 = None, None  # Ningún valor ingresado
             elif not año1:
@@ -829,8 +900,15 @@ class ProductoVista:
                 año2 = int(año2)
 
             producto_id = self.id[0]  # Variable almacenada del producto recién creado
-            self.controlador.agregar_compatibilidad_producto(producto_id, año1, año2, id_marca, id_modelo, cilindrada)
-            messagebox.showinfo("Éxito", "Compatibilidad agregada correctamente.")
+            boolean = self.controlador.agregar_compatibilidad_producto(producto_id, año1, año2, id_marca, id_modelo, cilindrada)
+            if boolean:
+                messagebox.showinfo("Éxito", "Compatibilidad agregada correctamente.")
+
+                self.compatibilidad_año1_entry.delete(0, END)
+                self.compatibilidad_año2_entry.delete(0, END)
+                self.compatibilidad_cilindrada_entry.delete(0, END)
+                self.compatibilidad_modelo_combobox.set("")
+                self.compatibilidad_marcas_combobox.set("")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo agregar compatibilidad: {e}")
 
@@ -856,40 +934,7 @@ class ProductoVista:
 
         
 
-        ttk.Label(self.compatibilidad_frame, text=f"Agregar Compatibilidad al Producto: {self.nombre_entry.get()} - {self.codigo_entry.get()}").grid(row=10, column=0, columnspan=4, pady=10)
-    
-        ttk.Label(self.compatibilidad_frame, text="Marca:").grid(row=11, column=0, padx=5, pady=5, sticky="w")
-        self.compatibilidad_marcas_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly")
-        self.compatibilidad_marcas_combobox.grid(row=11, column=1, padx=5, pady=5, sticky="w")
-        self.cargar_marca_compatibilicad_combobox()
-
-        self.compatibilidad_marcas_combobox.bind("<<ComboboxSelected>>", self.actualizar_modelos_compatibilidad)
-
-        ttk.Label(self.compatibilidad_frame, text="Modelo:").grid(row=11, column=2, padx=5, pady=5, sticky="w")
-        self.compatibilidad_modelo_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly")
-        self.compatibilidad_modelo_combobox.grid(row=11, column=3, padx=5, pady=5, sticky="w")
-        self.compatibilidad_modelo_combobox.state(["disabled"])
-
-        ttk.Label(self.compatibilidad_frame, text="Año Inicio:").grid(row=12, column=0, padx=5, pady=5, sticky="w")
-        self.compatibilidad_año1_entry = ttk.Entry(self.compatibilidad_frame)
-        self.compatibilidad_año1_entry.grid(row=12, column=1, padx=5, pady=5, sticky="w")
-
-        ttk.Label(self.compatibilidad_frame, text="Año Fin:").grid(row=12, column=2, padx=5, pady=5, sticky="w")
-        self.compatibilidad_año2_entry = ttk.Entry(self.compatibilidad_frame)
-        self.compatibilidad_año2_entry.grid(row=12, column=3, padx=5, pady=5, sticky="w")
-
-        ttk.Label(self.compatibilidad_frame, text="Cilindrada:").grid(row=13, column=0, padx=5, pady=5, sticky="w")
-        self.compatibilidad_cilindrada_entry = ttk.Entry(self.compatibilidad_frame)
-        self.compatibilidad_cilindrada_entry.grid(row=13, column=1, padx=5, pady=5, sticky="w")
-
-        self.agregar_compatibilidad_button = tk.Button(self.compatibilidad_frame, text="Agregar Compatibilidad",
-                                                        bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
-                                                        activeforeground="white",  font=("Arial", 10, "bold"),
-                                                        command=self.agregar_compatibilidad
-                                                        )
-        self.agregar_compatibilidad_button.grid(row=14, column=0, columnspan=4, pady=10, sticky="w")
-
-
+        
         datos = {
             "nombre": self.nombre_entry.get(),
             "descripcion": self.descripcion_entry.get() or None,
@@ -902,8 +947,54 @@ class ProductoVista:
             "imagenes": self.imagenes_list
         }
         
-        id = self.controlador.guardar_producto(datos)
-        self.id.append(id)
+        id, boolean = self.controlador.guardar_producto(datos)
+        if boolean:
+            self.id.append(id)
+
+            ttk.Label(self.compatibilidad_frame, text=f"Agregar Compatibilidad al Producto: {self.nombre_entry.get()} - {self.codigo_entry.get()}").grid(row=10, column=0, columnspan=4, pady=10)
+        
+            ttk.Label(self.compatibilidad_frame, text="Marca:").grid(row=11, column=0, padx=5, pady=5, sticky="w")
+            self.compatibilidad_marcas_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly")
+            self.compatibilidad_marcas_combobox.grid(row=11, column=1, padx=5, pady=5, sticky="w")
+            self.cargar_marca_compatibilicad_combobox()
+
+            self.compatibilidad_marcas_combobox.bind("<<ComboboxSelected>>", self.actualizar_modelos_compatibilidad)
+
+            ttk.Label(self.compatibilidad_frame, text="Modelo:").grid(row=11, column=2, padx=5, pady=5, sticky="w")
+            self.compatibilidad_modelo_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly")
+            self.compatibilidad_modelo_combobox.grid(row=11, column=3, padx=5, pady=5, sticky="w")
+            self.compatibilidad_modelo_combobox.state(["disabled"])
+
+            ttk.Label(self.compatibilidad_frame, text="Año Inicio:").grid(row=12, column=0, padx=5, pady=5, sticky="w")
+            self.compatibilidad_año1_entry = ttk.Entry(self.compatibilidad_frame)
+            self.compatibilidad_año1_entry.grid(row=12, column=1, padx=5, pady=5, sticky="w")
+
+            ttk.Label(self.compatibilidad_frame, text="Año Fin:").grid(row=12, column=2, padx=5, pady=5, sticky="w")
+            self.compatibilidad_año2_entry = ttk.Entry(self.compatibilidad_frame)
+            self.compatibilidad_año2_entry.grid(row=12, column=3, padx=5, pady=5, sticky="w")
+
+            ttk.Label(self.compatibilidad_frame, text="Cilindrada:").grid(row=13, column=0, padx=5, pady=5, sticky="w")
+            self.compatibilidad_cilindrada_entry = ttk.Entry(self.compatibilidad_frame)
+            self.compatibilidad_cilindrada_entry.grid(row=13, column=1, padx=5, pady=5, sticky="w")
+
+            self.agregar_compatibilidad_button = tk.Button(self.compatibilidad_frame, text="Agregar Compatibilidad",
+                                                            bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+                                                            activeforeground="white",  font=("Arial", 10, "bold"),
+                                                            command=self.agregar_compatibilidad
+                                                            )
+            self.agregar_compatibilidad_button.grid(row=14, column=0, columnspan=4, pady=10, sticky="w")
+
+
+
+            self.nombre_entry.delete(0, END)
+            self.codigo_entry.delete(0, END)
+            self.descripcion_entry.delete(0, END)
+            self.altura_entry.delete(0, END)
+            self.ancho_entry.delete(0, END)
+            self.largo_entry.delete(0, END)
+            self.precio_entry.delete(0, END)
+            self.costo_entry.delete(0, END)
+            self.imagenes_list = []
         try:
             self.buscar_producto()
         except Exception:
@@ -1717,7 +1808,6 @@ class ProductoVista:
             self.marcas2_combobox["values"] = list(self.marcas_diccionario.keys())
         else:
             self.marcas2_combobox["values"] = []
-            messagebox.showwarning("Advertencia", "No se encontraron modelos registrados.")
 
     def actualizar_modelos2(self, event=None):
         """Actualiza el combobox de modelos basado en la marca seleccionada y limpia la selección del modelo."""
@@ -2026,7 +2116,7 @@ class ProductoVista:
                     # Actualiza la etiqueta del contador
                     contador_label.config(text=f"Imagen {indice + 1} de {len(imagenes)}", font=("Arial", 10, "bold"))
                 except Exception as e:
-                    Label(imagen_frame, text=f"No hay imagen", font=("Arial", 10, "italic", "bold"), bg="beige", fg="red").pack()
+                    None
 
             def imagen_anterior():
                 if imagen_actual[0] > 0:
@@ -2101,7 +2191,10 @@ class ProductoVista:
         messagebox.showinfo("Imágenes cargadas", f"Se cargo {len(files)} imágen.")"""
 
     def guardar_marcas(self):
-        datos = self.nombre_marca_entry.get()
+        datos = {"nombre" : self.nombre_marca_entry.get()}
+        if not self.nombre_marca_entry.get():
+            messagebox.showerror("Error", "El campo 'Nombre' es obligatorio.")
+            return
         self.controlador.guardar_marcas(datos)
         self.nombre_marca_entry.delete(0, END)  # Limpia el campo de texto
         try:
@@ -2218,20 +2311,31 @@ class ProductoVista:
         self.guardar_carro_button = tk.Button(self.tab_carro, text="Guardar Carrito", command=self.guardar_carro, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold"))
         self.guardar_carro_button.grid(row=1, column=3, padx=5, pady=5)
+
+        ttk.Label(self.tab_carro, text="Vendedor:").grid(row=2, column=0, padx=5, pady=5)
+        self.vendedor_combobox = ttk.Combobox(self.tab_carro, state="readonly")
+        self.vendedor_combobox.grid(row=2, column=1, padx=5, pady=5)
+        self.cargar_vendedor()
+
         # Nuevo botón: Eliminar producto seleccionado
         self.eliminar_producto_button = tk.Button(self.tab_carro, text="Eliminar Producto", command=self.eliminar_producto_carro, bg="red", fg="white", bd=3, width=15, activebackground="red3",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold"))
-        self.eliminar_producto_button.grid(row=2, column=0, padx=5, pady=5)
+        self.eliminar_producto_button.grid(row=3, column=0, padx=5, pady=5)
 
         # Nuevo botón: Vaciar carrito completo
         self.vaciar_carro_button = tk.Button(self.tab_carro, text="Vaciar Carrito", command=self.vaciar_carro, bg="red", fg="white", bd=3, width=15, activebackground="red3",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold"))
-        self.vaciar_carro_button.grid(row=2, column=1, padx=5, pady=5)
+        self.vaciar_carro_button.grid(row=3, column=1, padx=5, pady=5)
 
     def cargar_medios_pago(self):
         """Carga los medios de pago desde la base de datos."""
         medios_pago = self.controlador.obtener_medios_pago()
         self.medio_pago_combobox["values"] = [f"{id} - {nombre}" for id, nombre in medios_pago]
+
+    def cargar_vendedor(self):
+        """Carga los medios de pago desde la base de datos."""
+        vendedor = self.controlador.obtener_vendedor()
+        self.vendedor_combobox["values"] = [f"{id} - {nombre}" for id, nombre in vendedor]    
 
     def añadir_al_carro(self, id_producto, id_ubi, cantidad, ubicacion, compatibilidad):
         """Añade un producto al carrito."""
@@ -2286,21 +2390,27 @@ class ProductoVista:
     def guardar_carro(self):
         """Guarda el carrito en la base de datos."""
         medio_pago_seleccionado = self.medio_pago_combobox.get()
+        usuario = self.vendedor_combobox.get()
         if not medio_pago_seleccionado:
             return messagebox.showerror("Error", "Debe seleccionar un medio de pago.")
 
+        if not usuario:
+            return messagebox.showerror("Error", "Debe seleccionar un vendedor")
+
         id_medio_pago = int(medio_pago_seleccionado.split(" - ")[0])
+        id_usuario = int(usuario.split(" - ")[0])
 
         if not self.carrito:
             return messagebox.showwarning("Advertencia", "El carrito está vacío.")
 
         # Guardar en la base de datos
 
-        exito = self.controlador.guardar_carro(self.carrito, id_medio_pago, self.total_final)
+        exito = self.controlador.guardar_carro(self.carrito, id_medio_pago, self.total_final, id_usuario)
         if exito:
             self.carrito = []
             self.total_final = 0.0
             self.actualizar_tabla_carro()
+            self.cargar_ventas_diarias()
 
     def eliminar_producto_carro(self):
         """Elimina el producto seleccionado del carrito."""
@@ -2383,13 +2493,199 @@ class ProductoVista:
             self.buscar_producto_marca()
         except Exception:
             None
-
         try:
             self.buscar_product()
         except Exception:
             None
+    
+    def tab_detalle_venta(self):
 
-# Controlador: Lógica para manejar interacciones
+        tree_frame_detalle_diario = tk.Frame(self.tab_detalle, bg="beige")
+        tree_frame_detalle_diario.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+         # Scrollbars
+        x_scroll = ttk.Scrollbar(tree_frame_detalle_diario, orient="horizontal")
+        x_scroll.grid(row=1, column=0, sticky="ew")
+
+        y_scroll = ttk.Scrollbar(tree_frame_detalle_diario, orient="vertical")
+        y_scroll.grid(row=0, column=1, sticky="ns")
+
+        # Treeview
+        self.ventas_treeview = ttk.Treeview(
+            tree_frame_detalle_diario,
+            columns=("vendedor", "producto", "cantidad", "total"),
+            show="headings",
+            xscrollcommand=x_scroll.set,
+            yscrollcommand=y_scroll.set
+        )
+        self.ventas_treeview.grid(row=0, column=0, sticky="nsew")
+
+        # Configurar encabezados
+        encabezados = [
+            "Vendedor", "Cantidad Productos", "Cantidad Ventas", "Total Ventas"
+        ]
+        for col, texto in zip(self.ventas_treeview["columns"], encabezados):
+            self.ventas_treeview.heading(col, text=texto)
+            self.ventas_treeview.column(col, minwidth=140, width=240, stretch=True)
+
+        # Configurar scrollbars
+        x_scroll.config(command=self.ventas_treeview.xview)
+        y_scroll.config(command=self.ventas_treeview.yview)
+
+        # Ajustar tamaño dinámico de columnas
+        
+        tree_frame_detalle_diario.grid_rowconfigure(0, weight=1)
+        tree_frame_detalle_diario.grid_columnconfigure(0, weight=1)
+
+
+        # Total del día
+        self.total_dia_label = ttk.Label(tree_frame_detalle_diario, text="Total Día: $0.00", font=("Arial", 12, "bold"))
+        self.total_dia_label.grid(row=6, column=0, padx=10, pady=10, sticky="w")
+
+        # Detalles por medio de pago
+        self.total_efectivo_label = ttk.Label(tree_frame_detalle_diario, text="Total Efectivo: $0.00", font=("Arial", 12, "bold"))
+        self.total_efectivo_label.grid(row=2, column=0, padx=10, pady=10, sticky="w")
+
+        self.total_debito_label = ttk.Label(tree_frame_detalle_diario, text="Total Débito: $0.00", font=("Arial", 12, "bold"))
+        self.total_debito_label.grid(row=3, column=0, padx=10, pady=10, sticky="w")
+
+        self.total_credito_label = ttk.Label(tree_frame_detalle_diario, text="Total Crédito: $0.00", font=("Arial", 12, "bold"))
+        self.total_credito_label.grid(row=4, column=0, padx=10, pady=10, sticky="w")
+
+        self.total_transferencia_label = ttk.Label(tree_frame_detalle_diario, text="Total Tansferencia: $0.00", font=("Arial", 12, "bold"))
+        self.total_transferencia_label.grid(row=5, column=0, padx=10, pady=10, sticky="w")    
+
+        # Botón para cerrar la caja
+        self.cerrar_caja_button = tk.Button(
+            tree_frame_detalle_diario, text="Cerrar Caja", command=self.cerrar_caja, bg="blue", fg="white",
+            font=("Arial", 12, "bold"), width=20, activebackground="darkblue", activeforeground="white"
+        )
+        self.cerrar_caja_button.grid(row=7, column=0, columnspan=2, pady=20)
+
+        # Cargar los datos iniciales
+        self.cargar_ventas_diarias()
+
+    def cargar_ventas_diarias(self):
+        """Carga los datos de las ventas diarias y los muestra en la tabla."""
+        ventas = self.controlador.obtener_ventas_diarias()
+        print("Hola")
+        # Limpiar la tabla
+        for item in self.ventas_treeview.get_children():
+            self.ventas_treeview.delete(item)
+
+        # Variables para totales
+        total_dia = 0
+        total_efectivo = 0
+        total_debito = 0
+        total_credito = 0
+        total_transferencia = 0
+        
+        # Insertar datos en la tabla
+        for venta in ventas:
+            usuario = venta[0]
+            productos_vendidos = venta[1] if venta[1] is not None else 0
+            cantidad_ventas = venta[2] if venta[2] is not None else 0
+            monto_total = venta[3] if venta[3] is not None else 0.0
+
+            if usuario.startswith("Total"):
+                if usuario == "Total Efectivo":
+                    total_efectivo = monto_total
+                elif usuario == "Total Débito":
+                    total_debito = monto_total
+                elif usuario == "Total Crédito":
+                    total_credito = monto_total
+                elif usuario == "Total Transferencia":
+                    total_transferencia = monto_total
+            elif usuario == "Total General":
+                total_dia = monto_total
+            else:
+                vendedor = usuario
+                self.ventas_treeview.insert(
+                    "", "end", values=(vendedor, productos_vendidos, cantidad_ventas, f"${monto_total:.2f}")
+                )
+        
+        # Si el Total General no está presente, sumar todos los totales conocidos
+        if total_dia == 0:
+            total_dia = total_efectivo + total_debito + total_credito + total_transferencia
+
+        # Mostrar totales
+        self.total_dia_label.config(text=f"Total Día: ${total_dia:.2f}")
+        self.total_efectivo_label.config(text=f"Total Efectivo: ${total_efectivo:.2f}")
+        self.total_debito_label.config(text=f"Total Débito: ${total_debito:.2f}")
+        self.total_credito_label.config(text=f"Total Crédito: ${total_credito:.2f}")
+        self.total_transferencia_label.config(text=f"Total Transferencia: ${total_transferencia:.2f}")
+
+    def cerrar_caja(self):
+        """Cierra la caja y guarda el total del día en la base de datos."""
+        total_dia = self.total_dia_label.cget("text").replace("Total Día: $", "")
+        total_efectivo = self.total_efectivo_label.cget("text").replace("Total Efectivo: $", "")
+        total_debito = self.total_debito_label.cget("text").replace("Total Débito: $", "")
+        total_credito = self.total_credito_label.cget("text").replace("Total Crédito: $", "")
+        total_transferencia = self.total_transferencia_label.cget("text").replace("Total Transferencia: $", "")
+        cantidad_ventas = sum(int(self.ventas_treeview.item(item, "values")[2]) for item in self.ventas_treeview.get_children())
+        cantidad_articulos = sum(int(self.ventas_treeview.item(item, "values")[1]) for item in self.ventas_treeview.get_children())
+
+
+
+        exito = self.controlador.guardar_cierre_caja(
+            float(total_dia),
+            float(total_efectivo),
+            float(total_debito),
+            float(total_credito),
+            float(total_transferencia),
+            cantidad_ventas,
+            cantidad_articulos
+
+        )
+
+        if exito:
+            messagebox.showinfo("Éxito", "Caja cerrada correctamente.")
+            self.cargar_ventas_diarias()
+        else:
+            messagebox.showerror("Error", "No se pudo cerrar la caja.")
+
+    def actualizar_pestaña(self, event):
+
+        try:
+            self.buscar_producto()
+        except Exception:
+            None
+        try:
+            self.buscar_producto_marca()
+        except Exception:
+            None
+        try:
+            self.buscar_product()
+        except Exception:
+            None
+        try:
+            self.cargar_ventas_diarias()
+        except Exception:
+            None
+        try:
+            self.cargar_marca_combobox2()
+            self.actualizar_modelos2()
+        except Exception:
+            None 
+        try:
+            self.cargar_marcas_combobox()
+        except Exception:
+            None
+        try:
+            self.cargar_marca_compatibilicad_combobox()
+            self.actualizar_modelos_compatibilidad()
+        except Exception:
+            None
+        try:
+            self.actualizar_modelos_compatibilidad()
+        except Exception:
+            None
+        try:
+            self.cargar_marca_compatibilicad_combobox()
+        except Exception:
+            None
+
+
 class ProductoControlador:
     def __init__(self, vista):
         self.modelo = ProductoModelo()
@@ -2405,8 +2701,10 @@ class ProductoControlador:
     def agregar_compatibilidad_producto(self, producto_id, año1, año2, marca, modelo, cilindrada):
         try:
             self.modelo.agregar_compatibilidad_producto(producto_id, año1, año2, marca, modelo, cilindrada)
+            return True
         except Exception as e:
-            raise e
+            return False
+            
 
     def guardar_producto(self, datos):
         
@@ -2417,10 +2715,11 @@ class ProductoControlador:
                 datos["ancho"], datos["altura"], datos["imagenes"]
             )
             messagebox.showinfo("Éxito", "Producto registrado correctamente.")
-            return(id)
+            return(id, True)
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo registrar el producto: {e}")
-
+            return(None, False)
+        
     def eliminar_producto(self, id):
         try:
             self.modelo.eliminar(id)
@@ -2458,9 +2757,7 @@ class ProductoControlador:
 
     def guardar_marcas(self, datos):
         try:
-            self.modelo.agregar_marca(
-                datos
-            )
+            self.modelo.agregar_marca(datos["nombre"])
             messagebox.showinfo("Éxito", "Marca registrada correctamente.")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo registrar la marca: {e}")
@@ -2567,11 +2864,24 @@ class ProductoControlador:
         query = "SELECT id_medio_pago, nombre FROM medio_pago"
         self.modelo.cursor.execute(query)
         return self.modelo.cursor.fetchall()
-        
-    def guardar_carro(self, carrito, id_medio_pago, total):
+    
+    def obtener_vendedor(self):
+        query = "SELECT id_usuario, nombre FROM usuario"
+        self.modelo.cursor.execute(query)
+        return self.modelo.cursor.fetchall()
+
+    def obtener_ventas_diarias(self):
+        try:
+            a = self.modelo.obtener_ventas_diarias()
+            print(a)
+            return a
+        except Exception as e:
+            return []
+
+    def guardar_carro(self, carrito, id_medio_pago, total, id_usuario):
         
         try:
-            self.modelo.guardar_carro_modelo(carrito, id_medio_pago, total)
+            self.modelo.guardar_carro_modelo(carrito, id_medio_pago, total, id_usuario)
             messagebox.showinfo("Éxito", "Carrito agregado correctamente")
             return True
 

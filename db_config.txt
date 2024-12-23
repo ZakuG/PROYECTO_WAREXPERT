@@ -1,0 +1,5 @@
+[mysql]
+host = Zaku
+user = rootdos
+password = 1234
+database = Warexpert

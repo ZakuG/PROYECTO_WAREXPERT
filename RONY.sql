@@ -5,8 +5,7 @@ USE Warexpert;
 create table marcas
 (
 	id_marca integer auto_increment primary key,
-    nombre varchar(50),
-    imagen LONGBLOB
+    nombre varchar(50)
 );
 
 create table modelo
@@ -14,7 +13,6 @@ create table modelo
 	id_modelo integer auto_increment primary key,
     nombre varchar(150),
     marca integer,
-    imagen LONGBLOB,
     foreign key (marca) references marcas(id_marca) ON DELETE CASCADE
 );
 
@@ -94,6 +92,7 @@ id_carro integer auto_increment primary key,
 fecha datetime default current_timestamp,
 medio_pago integer,
 monto float,
+user integer,
 foreign key(medio_pago) references medio_pago(id_medio_pago) ON DELETE CASCADE
 );
 
