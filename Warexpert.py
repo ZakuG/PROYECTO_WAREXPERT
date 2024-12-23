@@ -7,13 +7,24 @@ from PIL import Image, ImageTk  # Para manejar las imágenes correctamente
 import mysql.connector
 from io import BytesIO
 from configparser import ConfigParser
-
+from datetime import date
 
 # Modelo: Interacción con la base de datos
 class ProductoModelo:
     def __init__(self):
+        if getattr(os.sys, 'frozen', False):  
+            base_path = os.sys._MEIPASS  # Ruta temporal donde PyInstaller coloca los archivos
+        else:
+            base_path = os.path.dirname(__file__)  # Ruta del script actual
+
+        config_path = os.path.join(base_path, "db_config.txt")
+        print(f"Ruta de configuración: {config_path}") 
+        # Verifica si el archivo existe
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"No se encontró el archivo de configuración: {config_path}")
+
         config = ConfigParser()
-        config.read("db_config.txt")
+        config.read(config_path)  # Usar config_path en lugar de "db_config.txt"
 
         # Extraer valores
         host = config.get("mysql", "host")
@@ -41,7 +52,17 @@ class ProductoModelo:
         except Exception as e:
             self.conn.rollback()
             raise e
+    def cargar_imagenes_new(self, imagenes, id):
+        try:
+            for imagen_path in imagenes:
+                with open(imagen_path, "rb") as imagen_file:
+                    imagen_binaria = imagen_file.read()
+                self.cursor.execute("INSERT INTO Imagenes (url_imagen, id_producto) VALUES (%s, %s)", (imagen_binaria, id))
 
+            self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            raise e
     def agregar_producto(self, nombre, descripcion, codigo, precio, costo, largo, ancho, altura, imagenes):
 
         try:
@@ -140,8 +161,8 @@ class ProductoModelo:
                     parametros.append(float(palabra))
                 else:
                     like_pattern = f"%{palabra}%"
-                    condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s)")
-                    parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern])
+                    condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s OR p.codigo_producto LIKE %s)")
+                    parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern, like_pattern])
 
             
 
@@ -151,7 +172,7 @@ class ProductoModelo:
             # Consulta final
             consulta = f"""
                             SELECT 
-                                p.codigo_producto, m.nombre, mo.nombre, 
+                                p.codigo_producto, m.nombre, mo.nombre,
                                 p.nombre, p.descripcion, cp.cilindrada, 
                                 cp.año0, cp.año1, p.Cantidad_Total, 
                                 pr.precio_cliente, pr.costo_empresa, p.id_producto, cp.id_compatibilidad_producto
@@ -276,10 +297,9 @@ class ProductoModelo:
                     condiciones.append("ABS(cp.cilindrada - %s) < 0.01")  # Margen de error para flotantes
                     parametros.append(float(palabra))
                 else:
-                    palabra = str(palabra)
                     like_pattern = f"%{palabra}%"
-                    condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s)")
-                    parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern])
+                    condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s OR p.codigo_producto LIKE %s)")
+                    parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern, like_pattern])
 
             # Combina las condiciones con AND para que todas las palabras coincidan
             where_clause = " AND ".join(condiciones)
@@ -441,6 +461,30 @@ class ProductoModelo:
 
         return [imagen[0] for imagen in self.cursor.fetchall()]
 
+    def buscar_imagenes_producto_id(self, id_producto):
+        
+        consulta = """
+            SELECT 
+                url_imagen, id_imagen
+            FROM Imagenes
+            WHERE id_producto = %s
+        """
+        self.cursor.execute(consulta, (id_producto,))
+        # Extraemos solo las rutas de las imágenes de la consulta
+
+
+        return self.cursor.fetchall()
+
+    def eliminar_imagen_producto(self, id_producto, id_imagen):
+        try:
+            self.cursor.execute(f"delete from imagenes where id_imagen={id_imagen} and id_producto={id_producto}")
+            self.conn.commit()
+
+        except Exception as e:
+
+            self.conn.rollback()
+            raise e
+        
     def eliminar_compatibilidad(self, id):
         try:
             
@@ -691,6 +735,43 @@ class ProductoModelo:
         except Exception as e:
             return None
 
+    """def guardar_cierre_caja(self, total_dia, total_efectivo, total_debito, total_credito, total_transferencia, cantidad_ventas, cantidad_articulos, ventas_por_usuario):
+        try:
+            # Insertar en la tabla `carro`
+            query_cierre = 
+                            INSERT INTO detalle_diario (
+                                total_dia, total_efectivo,
+                                total_debito, total_credito, total_tranfe, cantidad_ventas_total, cantidad_articulos_total, activa
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        
+            self.cursor.execute(query_cierre, (total_dia, total_efectivo, total_debito, total_credito, total_transferencia, cantidad_ventas, cantidad_articulos, False,))
+            id_cierre = self.cursor.lastrowid
+            
+            for usuario_data in ventas_por_usuario:
+                cantidad_ventas_usuario = usuario_data['cantidad_ventas']
+                cantidad_articulos_usuario = usuario_data['cantidad_productos']
+                total_ventas_usuario = usuario_data['total_ventas']
+                query_user= select id_usuario from usuario where nombre = %s
+                self.cursor.execute(query_user, (usuario_data['usuario'],))  # Obtener el ID del usuario desde tu base de datos
+                usuario_id= self.cursor.fetchall()
+                # Insertar en la tabla `detalle_carro`
+
+                query_detalle = 
+                INSERT INTO detalle_diario_usuario  (detalle_diario, cantidad_ventas, cantidad_articulos, total_usuario, usuario)
+                VALUES (%s, %s, %s, %s, %s)
+                
+
+                self.cursor.execute(query_detalle, (
+                    int(id_cierre), int(cantidad_ventas_usuario),
+                    int(cantidad_articulos_usuario), float(total_ventas_usuario), int(usuario_id[0]),))
+
+            self.conn.commit()
+            return None
+        except Exception as e:
+
+            self.conn.rollback()
+            return None"""
+
     def cerrar_conexion(self):
         self.cursor.close()
         self.conn.close()
@@ -774,7 +855,7 @@ class ProductoVista:
         self.tab_detalle = ttk.Frame(self.notebook, style="Custom.TFrame")
         self.notebook.add(self.tab_detalle, text="Detalle Ventas")
         self.tab_detalle_venta()
-        
+        self.root.protocol("WM_DELETE_WINDOW", self.cerrar_programa)
 
     def crear_pestaña_registro(self):
         self.id=[]
@@ -1088,21 +1169,24 @@ class ProductoVista:
         ubicacion_window.resizable(False, False)
         ubicacion_window.attributes("-fullscreen", False)
 
+        ubi_frame = Frame(ubicacion_window, bg="beige")
+        ubi_frame.pack(side="top")
+
         # Campos para asignar ubicación
-        ttk.Label(ubicacion_window, text="Pasillo:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        pasillo_entry = ttk.Entry(ubicacion_window)
+        ttk.Label(ubi_frame, text="Pasillo:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        pasillo_entry = ttk.Entry(ubi_frame)
         pasillo_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        ttk.Label(ubicacion_window, text="Sección:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        seccion_entry = ttk.Entry(ubicacion_window)
+        ttk.Label(ubi_frame, text="Sección:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        seccion_entry = ttk.Entry(ubi_frame)
         seccion_entry.grid(row=1, column=1, padx=5, pady=5)
 
-        ttk.Label(ubicacion_window, text="Piso:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        piso_entry = ttk.Entry(ubicacion_window)
+        ttk.Label(ubi_frame, text="Piso:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        piso_entry = ttk.Entry(ubi_frame)
         piso_entry.grid(row=2, column=1, padx=5, pady=5)
 
-        ttk.Label(ubicacion_window, text="Cantidad:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        cantidad_entry = ttk.Entry(ubicacion_window)
+        ttk.Label(ubi_frame, text="Cantidad:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        cantidad_entry = ttk.Entry(ubi_frame)
         cantidad_entry.grid(row=3, column=1, padx=5, pady=5)
 
         def guardar_ubicacion():
@@ -1269,7 +1353,125 @@ class ProductoVista:
                     
                     i += 1
 
+            def ver_imagenes_vista():
+                add_Imagenes = Toplevel(self.root, bg="beige")
+                add_Imagenes.title(f"Imagenes - {producto1_entry.get()}")
+                add_Imagenes.geometry("520x520")
 
+                add_Imagenes.resizable(False, False)
+                add_Imagenes.attributes("-fullscreen", False)
+
+                add_Imagenes_frame = Frame(add_Imagenes, bg="beige")
+                add_Imagenes_frame.pack(fill="x", padx=10, pady=10)
+
+                ttk.Label(add_Imagenes_frame, text=f"Imagenes del Producto: {producto1_entry.get()} - {codigo1_entry.get()}").pack(side="top")
+                Imagenes_frame = Frame(add_Imagenes, bg="beige")
+                Imagenes_frame.pack(fill="x", padx=10, pady=10)
+                self.modelo = ProductoModelo()
+                
+                imagenes = self.modelo.buscar_imagenes_producto_id(id_producto)  # Obtener las imágenes desde la base de datos
+                imagen_frame = Frame(Imagenes_frame, bg="beige")
+                imagen_frame.pack(fill="x", padx=10, pady=10)
+                if imagenes:
+                    
+                    
+
+                    imagen_actual = [0]  # Usamos una lista para que sea mutable y accesible dentro de las funciones locales
+
+                    
+                    def mostrar_imagen(indice):
+                        try:
+                            # Convierte los datos binarios en una imagen
+                            imagen_data = BytesIO(imagenes[indice][0])
+                            imagen = Image.open(imagen_data)
+                            imagen = imagen.resize((300, 300), Image.LANCZOS)
+                            imagen_tk = ImageTk.PhotoImage(imagen)
+
+                            # Actualiza la etiqueta de la imagen
+                            imagen_label.config(image=imagen_tk)
+                            imagen_label.image = imagen_tk  # Mantén la referencia para evitar que se elimine
+                            imagen_label.pack()
+
+                            # Actualiza la etiqueta del contador
+                            contador_label.config(text=f"Imagen {indice + 1} de {len(imagenes)}", font=("Arial", 10, "bold"))
+                        except Exception as e:
+                            imagen_label.config(text="Error al cargar la imagen", image="", font=("Arial", 10, "bold"))
+                            contador_label.config(text=f"Imagen {indice + 1} de {len(imagenes)} (Corrupta)", font=("Arial", 10, "bold"))
+                    
+                    def imagen_anterior():
+                        if imagen_actual[0] > 0:
+                            imagen_actual[0] -= 1
+
+                            mostrar_imagen(imagen_actual[0])
+
+                    def imagen_siguiente():
+                        if imagen_actual[0] < len(imagenes) - 1:
+                            imagen_actual[0] += 1
+                            mostrar_imagen(imagen_actual[0])
+
+                    def eliminar_imagen():
+                        indice = imagen_actual[0]
+                        id_imagen = imagenes[indice][1]
+                        if messagebox.askyesno("Confirmar eliminación", "¿Seguro que deseas eliminar esta imagen?"):
+                            # Eliminar imagen de la base de datos
+                            self.modelo.eliminar_imagen_producto(id_producto, id_imagen)
+                            del imagenes[indice]
+
+                            # Ajustar el índice y actualizar la vista
+                            if indice >= len(imagenes):
+                                imagen_actual[0] = len(imagenes) - 1
+                            if len(imagenes) > 0:
+                                mostrar_imagen(imagen_actual[0])
+                            else:
+                                imagen_label.config(image="", text="No hay imágenes disponibles", font=("Arial", 10, "bold"))
+                                contador_label.config(text="")
+                            add_Imagenes.destroy()
+                            ver_imagenes_vista()
+
+                    # Botones para navegar entre imágenes
+                    boton_anterior = Button(imagen_frame, text="Anterior", command=imagen_anterior, bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                                                    activeforeground="beige", font=("Arial", 10, "bold"))
+                    boton_anterior.pack(side="left", padx=5)
+
+                    boton_siguiente = Button(imagen_frame, text="Siguiente", command=imagen_siguiente, bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                                                    activeforeground="beige", font=("Arial", 10, "bold"))
+                    boton_siguiente.pack(side="right", padx=5)
+
+                    boton_eliminar = Button(imagen_frame, text="Eliminar Imagen", command=eliminar_imagen, bg="red", fg="white", bd=3, activebackground="red3",
+                                activeforeground="white", font=("Arial", 10, "bold"))
+                    boton_eliminar.pack(side="bottom", pady=5)
+                    
+                    
+
+                    # Etiqueta para mostrar imágenes
+                    imagen_label = Label(imagen_frame, bg="beige")
+                    imagen_label.pack()
+
+                    # Etiqueta para el contador
+                    contador_label = Label(imagen_frame, text="", bg="beige")
+                    contador_label.pack()
+
+                    # Muestra la primera imagen
+                    mostrar_imagen(imagen_actual[0])
+                else:
+                    ttk.Label(imagen_frame, text=f"No hay imagenes disponibles").pack(side="top")
+
+                def cargar_imagenes():
+                        imagen_list = []
+                        files = filedialog.askopenfilenames(filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg")])
+                        if files:
+                            imagen_list = files
+                            self.modelo.cargar_imagenes_new(imagen_list, id_producto)
+                            messagebox.showinfo("Imágenes cargadas", f"Se cargaron {len(files)} imágenes.")
+                            add_Imagenes.destroy()
+                            print("aaa")
+                            ver_imagenes_vista()
+                        else:
+                            messagebox.showwarning("Advertencia", "No se seleccionaron imágenes.")
+
+                imagenes_button = tk.Button(imagen_frame, text="Cargar Imágenes", bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+                                            activeforeground="white", font=("Arial", 10, "bold"), command=cargar_imagenes)
+                imagenes_button.pack(side="bottom", pady=5)
             def agregar_compatibilidad_vista():
 
                 def cargar_marca_add_compatibilicad_combobox():
@@ -1358,7 +1560,7 @@ class ProductoVista:
                 
                 add_compatibilidad = Toplevel(self.root, bg="beige")
                 add_compatibilidad.title(f"Agregar Compatibilidad - {producto1_entry.get()}")
-                add_compatibilidad.geometry("520x210")
+                add_compatibilidad.geometry("520x230")
 
                 add_compatibilidad.resizable(False, False)
                 add_compatibilidad.attributes("-fullscreen", False)
@@ -1544,6 +1746,8 @@ class ProductoVista:
             tk.Button(boton_frame, text="Agregar Compatibilidad", bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
                                         activeforeground="beige", font=("Arial", 10, "bold"), 
                                         command=agregar_compatibilidad_vista).grid(row=0, column=1, padx=5)
+            tk.Button(boton_frame, text="Ver Imagenes", bg="Blue", fg="beige", bd=3, activebackground="darkblue",  # Fondo al presionar
+                                        activeforeground="beige", font=("Arial", 10, "bold"), command=ver_imagenes_vista).grid(row=0, column=2, padx=5)
             
 
         def eliminar_producto():
@@ -1610,14 +1814,17 @@ class ProductoVista:
             button_frame.columnconfigure(0, weight=1)
             button_frame.columnconfigure(1, weight=1)
 
-        tk.Button(ubicacion_window, text="Guardar Ubicación", bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
+        ubi_button_frame = Frame(ubicacion_window, bg="beige")
+        ubi_button_frame.pack(side="bottom")
+
+        tk.Button(ubi_button_frame, text="Guardar Ubicación", bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
                   activeforeground="white",  font=("Arial", 10, "bold"), 
-                  command=guardar_ubicacion).grid(row=4, column=0, columnspan=2, pady=10)
-        tk.Button(ubicacion_window, text="Editar Producto", bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
+                  command=guardar_ubicacion, width=20).grid(row=4, column=0, columnspan=2, pady=10)
+        tk.Button(ubi_button_frame, text="Editar Producto", bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
                   activeforeground="beige", font=("Arial", 10, "bold"), 
-                  command=actualizar_producto).grid(row=5, column=0, columnspan=2, pady=10)
-        tk.Button(ubicacion_window, text="Eliminar Producto", command=eliminar_producto, bg="red", 
-                  fg="white", bd=3, width=15, activebackground="red3",  # Fondo al presionar
+                  command=actualizar_producto, width=20).grid(row=5, column=0, columnspan=2, pady=10)
+        tk.Button(ubi_button_frame, text="Eliminar Producto", command=eliminar_producto, bg="red", 
+                  fg="white", bd=3, width=20, activebackground="red3",  # Fondo al presionar
                   activeforeground="white",  font=("Arial", 10, "bold")).grid(row=6, column=0, columnspan=2, pady=10)
         
     def crear_pestaña_busqueda(self):
@@ -2116,7 +2323,9 @@ class ProductoVista:
                     # Actualiza la etiqueta del contador
                     contador_label.config(text=f"Imagen {indice + 1} de {len(imagenes)}", font=("Arial", 10, "bold"))
                 except Exception as e:
-                    None
+                    imagen_label.config(text="Error al cargar la imagen", image="", font=("Arial", 10, "bold"))
+                    contador_label.config(text=f"Imagen {indice + 1} de {len(imagenes)} (Corrupta)", font=("Arial", 10, "bold"))
+
 
             def imagen_anterior():
                 if imagen_actual[0] > 0:
@@ -2185,11 +2394,13 @@ class ProductoVista:
                                         activeforeground="white",  font=("Arial", 10, "bold"))
         self.guardar_button.grid(row=2, column=0, columnspan=2, pady=10)
 
+
     """def cargar_imagenes_marca(self):
         files = filedialog.askopenfilenames(filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg")])
         self.imagenes_marcas_Entry = files
         messagebox.showinfo("Imágenes cargadas", f"Se cargo {len(files)} imágen.")"""
 
+   
     def guardar_marcas(self):
         datos = {"nombre" : self.nombre_marca_entry.get()}
         if not self.nombre_marca_entry.get():
@@ -2208,7 +2419,8 @@ class ProductoVista:
             self.actualizar_modelos_compatibilidad()
         except Exception:
             None
-        
+    
+    
   
     def crear_pestaña_modelo(self):
         # Campos de entrada
@@ -2327,6 +2539,14 @@ class ProductoVista:
                                         activeforeground="white",  font=("Arial", 10, "bold"))
         self.vaciar_carro_button.grid(row=3, column=1, padx=5, pady=5)
 
+
+    def cerrar_programa(self):
+        """Función que se ejecuta cuando el programa se cierra."""
+        if self.carrito:
+            # Preguntar al usuario si desea devolver los productos al stock
+            self.vaciar_carro()  # Vaciar el carrito y devolver los productos al stock
+        self.root.quit()
+        self.root.destroy() 
     def cargar_medios_pago(self):
         """Carga los medios de pago desde la base de datos."""
         medios_pago = self.controlador.obtener_medios_pago()
@@ -2499,9 +2719,19 @@ class ProductoVista:
             None
     
     def tab_detalle_venta(self):
+        
+        tree_frame_dia = tk.Frame(self.tab_detalle, bg="beige")
+        tree_frame_dia.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+        self.invisible = ttk.Label(tree_frame_dia, text="", font=("Arial", 12, "bold"))
+        self.invisible.grid(row=0, column=0, padx=195, sticky="w")
+        fecha = date.today()
+
+        self.total_dia = ttk.Label(tree_frame_dia, text=f"Fecha: {fecha.day} - {fecha.month} - {fecha.year}", font=("Arial", 12, "bold"))
+        self.total_dia.grid(row=0, column=1, sticky="w")
 
         tree_frame_detalle_diario = tk.Frame(self.tab_detalle, bg="beige")
-        tree_frame_detalle_diario.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        tree_frame_detalle_diario.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
 
          # Scrollbars
         x_scroll = ttk.Scrollbar(tree_frame_detalle_diario, orient="horizontal")
@@ -2556,19 +2786,19 @@ class ProductoVista:
         self.total_transferencia_label.grid(row=5, column=0, padx=10, pady=10, sticky="w")    
 
         # Botón para cerrar la caja
-        self.cerrar_caja_button = tk.Button(
+        """self.cerrar_caja_button = tk.Button(
             tree_frame_detalle_diario, text="Cerrar Caja", command=self.cerrar_caja, bg="blue", fg="white",
             font=("Arial", 12, "bold"), width=20, activebackground="darkblue", activeforeground="white"
         )
-        self.cerrar_caja_button.grid(row=7, column=0, columnspan=2, pady=20)
+        self.cerrar_caja_button.grid(row=7, column=0, columnspan=2, pady=20)"""
 
         # Cargar los datos iniciales
         self.cargar_ventas_diarias()
 
     def cargar_ventas_diarias(self):
         """Carga los datos de las ventas diarias y los muestra en la tabla."""
+        
         ventas = self.controlador.obtener_ventas_diarias()
-        print("Hola")
         # Limpiar la tabla
         for item in self.ventas_treeview.get_children():
             self.ventas_treeview.delete(item)
@@ -2579,14 +2809,23 @@ class ProductoVista:
         total_debito = 0
         total_credito = 0
         total_transferencia = 0
-        
+        usuario_totales = {}
         # Insertar datos en la tabla
         for venta in ventas:
             usuario = venta[0]
             productos_vendidos = venta[1] if venta[1] is not None else 0
             cantidad_ventas = venta[2] if venta[2] is not None else 0
             monto_total = venta[3] if venta[3] is not None else 0.0
-
+            if usuario not in usuario_totales:
+                usuario_totales[usuario] = {
+                    'cantidad_productos': 0,
+                    'cantidad_ventas': 0,
+                    'total_ventas': 0.0
+                }
+            
+            usuario_totales[usuario]['cantidad_productos'] += productos_vendidos
+            usuario_totales[usuario]['cantidad_ventas'] += cantidad_ventas
+            usuario_totales[usuario]['total_ventas'] += monto_total
             if usuario.startswith("Total"):
                 if usuario == "Total Efectivo":
                     total_efectivo = monto_total
@@ -2614,6 +2853,8 @@ class ProductoVista:
         self.total_debito_label.config(text=f"Total Débito: ${total_debito:.2f}")
         self.total_credito_label.config(text=f"Total Crédito: ${total_credito:.2f}")
         self.total_transferencia_label.config(text=f"Total Transferencia: ${total_transferencia:.2f}")
+        
+        self.usuario_totales = usuario_totales
 
     def cerrar_caja(self):
         """Cierra la caja y guarda el total del día en la base de datos."""
@@ -2625,7 +2866,18 @@ class ProductoVista:
         cantidad_ventas = sum(int(self.ventas_treeview.item(item, "values")[2]) for item in self.ventas_treeview.get_children())
         cantidad_articulos = sum(int(self.ventas_treeview.item(item, "values")[1]) for item in self.ventas_treeview.get_children())
 
+        ventas_por_usuario = []
 
+        for usuario, datos in self.usuario_totales.items():
+            cantidad_productos = datos['cantidad_productos']
+            cantidad_ventas_usuario = datos['cantidad_ventas']
+            total_ventas_usuario = datos['total_ventas']
+            ventas_por_usuario.append({
+            'usuario': usuario,
+            'cantidad_productos': cantidad_productos,
+            'cantidad_ventas': cantidad_ventas_usuario,
+            'total_ventas': total_ventas_usuario})
+        
 
         exito = self.controlador.guardar_cierre_caja(
             float(total_dia),
@@ -2634,8 +2886,8 @@ class ProductoVista:
             float(total_credito),
             float(total_transferencia),
             cantidad_ventas,
-            cantidad_articulos
-
+            cantidad_articulos,
+            ventas_por_usuario
         )
 
         if exito:
@@ -2873,7 +3125,6 @@ class ProductoControlador:
     def obtener_ventas_diarias(self):
         try:
             a = self.modelo.obtener_ventas_diarias()
-            print(a)
             return a
         except Exception as e:
             return []
@@ -2898,7 +3149,14 @@ class ProductoControlador:
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo obtener el producto: {e}")
 
-
+    def guardar_cierre_caja(self, total_dia, total_efectivo, total_debito, total_credito, total_transferencia, cantidad_ventas, cantidad_articulos, ventas_por_usuario):
+        try:
+            
+            self.modelo.guardar_cierre_caja(total_dia, total_efectivo, total_debito, total_credito, total_transferencia, cantidad_ventas, cantidad_articulos, ventas_por_usuario)
+            
+            return True
+        except Exception as e:
+            return False
     
 # Inicialización
 if __name__ == "__main__":

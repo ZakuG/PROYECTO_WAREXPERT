@@ -82,17 +82,30 @@ nombre varchar(60)
 );
 
 INSERT INTO medio_pago (NOMBRE) VALUES 
-("Tarjeta de Credito"),
-("Tarjeta de  Debito"),
 ("Efectivo"),
+("Tarjeta de Debito"),
+("Tarjeta de Credito"),
 ("Transferencia");
+
+create table usuario(
+id_usuario integer auto_increment primary key,
+nombre varchar(60),
+rut varchar(30)
+);
+
+INSERT INTO usuario (Nombre) VALUES 
+("Rony Castro Araya"),
+("Computador 2"),
+("Computador 3"),
+("Computador 4");
 
 create table carro(
 id_carro integer auto_increment primary key,
 fecha datetime default current_timestamp,
 medio_pago integer,
 monto float,
-user integer,
+usuario integer,
+foreign key(usuario) references usuario(id_usuario),
 foreign key(medio_pago) references medio_pago(id_medio_pago) ON DELETE CASCADE
 );
 
@@ -105,6 +118,31 @@ carro integer,
 foreign key(producto) references productos(id_producto) ON DELETE CASCADE,
 foreign key(carro) references carro(id_carro) ON DELETE CASCADE
 );
+
+CREATE TABLE detalle_diario (
+    id_detalle_diario INTEGER AUTO_INCREMENT PRIMARY KEY,
+    fecha DATE default (current_date), -- Fecha del día
+    total_dia FLOAT NOT NULL, -- Total acumulado del día
+    total_efectivo float not null,
+    total_tranfe float not null,
+    total_credito float not null,
+    total_debito float not null,
+    cantidad_ventas_total INTEGER NOT NULL, -- Número total de ventas
+    activa bool default true,
+    cantidad_articulos_total INTEGER NOT NULL -- Número total de artículos vendidos
+);
+
+create table detalle_diario_usuario(
+	id_detalle_diario_usuario integer auto_increment primary key,
+    cantidad_ventas integer,
+    cantidad_articulos integer,
+    detalle_diario integer,
+    total_usuario float,
+    usuario integer,
+    foreign key(detalle_diario) references detalle_diario(id_detalle_diario),
+    foreign key(usuario) references usuario(id_usuario)
+);
+
 -- Índices para optimización de búsqueda
 CREATE INDEX idx_nombre ON Productos(nombre);
 CREATE INDEX idx_codigo_producto ON Productos(codigo_producto);
