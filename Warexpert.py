@@ -1,3 +1,5 @@
+import threading
+import time
 from tkinter import Toplevel, Label, Frame, PhotoImage, filedialog, messagebox
 from tkinter import ttk
 from tkinter import *
@@ -18,7 +20,6 @@ class ProductoModelo:
             base_path = os.path.dirname(__file__)  # Ruta del script actual
 
         config_path = os.path.join(base_path, "db_config.txt")
-        print(f"Ruta de configuración: {config_path}") 
         # Verifica si el archivo existe
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"No se encontró el archivo de configuración: {config_path}")
@@ -27,17 +28,18 @@ class ProductoModelo:
         config.read(config_path)  # Usar config_path en lugar de "db_config.txt"
 
         # Extraer valores
-        host = config.get("mysql", "host")
-        user = config.get("mysql", "user")
-        password = config.get("mysql", "password")
-        database = config.get("mysql", "database")
+        self.host = config.get("mysql", "host")
+        self.user = config.get("mysql", "user")
+        self.password = config.get("mysql", "password")
+        self.database = config.get("mysql", "database")
 
         # Establecer conexión con MySQL
         self.conn = mysql.connector.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=database
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            database=self.database,
+            autocommit=True 
         )
                 
         self.cursor = self.conn.cursor()
@@ -268,7 +270,7 @@ class ProductoModelo:
                                 on 
                                     pr.id_producto=p.id_producto 
                                 WHERE 
-                                    p.cantidad_total>0 and {where_clause} 
+                                    {where_clause} 
                                 ORDER BY 
                                     m.nombre, mo.nombre, p.nombre;
                         """
@@ -518,7 +520,8 @@ class ProductoModelo:
             left JOIN marcas m ON cp.marca = m.id_marca
             left JOIN modelo mo ON cp.modelo = mo.id_modelo
             JOIN Precios pr ON p.id_producto = pr.id_producto
-            WHERE p.id_producto = %s and cp.id_compatibilidad_producto = %s
+            left join ubicaciones as u on u.id_producto = p.id_producto
+            WHERE p.id_producto = %s and cp.id_compatibilidad_producto = %s  and u.cantidad>0
             """
             self.cursor.execute(query, (id_producto, compatibilidad,))
             result = self.cursor.fetchone()
@@ -529,6 +532,7 @@ class ProductoModelo:
                 modelo = result[3] if result[3] is not None else "No disponible"
                 
                 # Regresamos los resultados con la marca y el modelo actualizados
+                self.conn.commit()
                 return (result[0], result[1], marca, modelo, result[4])
         else:
             query = """
@@ -539,7 +543,8 @@ class ProductoModelo:
             left JOIN marcas m ON cp.marca = m.id_marca
             left JOIN modelo mo ON cp.modelo = mo.id_modelo
             JOIN Precios pr ON p.id_producto = pr.id_producto
-            WHERE p.id_producto = %s
+            left join ubicaciones as u on u.id_producto = p.id_producto
+            WHERE p.id_producto = %s and u.cantidad>0
             """
             self.cursor.execute(query, (id_producto,))
             result = self.cursor.fetchone()
@@ -550,7 +555,9 @@ class ProductoModelo:
                 modelo = result[3] if result[3] is not None else "No disponible"
                 
                 # Regresamos los resultados con la marca y el modelo actualizados
+                self.conn.commit()
                 return (result[0], result[1], marca, modelo, result[4])
+        self.conn.commit()
         return None
     
     def update_ubi(self, id_ubi, cantidad, id_producto):
@@ -562,7 +569,7 @@ class ProductoModelo:
         resultado = self.cursor.fetchone()
         
         if resultado is None:
-            raise ValueError(f"No se encontró una ubicación con ID {id_ubi}")
+            return
         
         cantidad_actual = int(resultado[0])
         nueva_cantidad = cantidad_actual - int(cantidad)
@@ -731,6 +738,7 @@ class ProductoModelo:
             """
             # Ejecuta la consulta
             self.cursor.execute(consulta)
+
             return self.cursor.fetchall()
         except Exception as e:
             return None
@@ -856,6 +864,7 @@ class ProductoVista:
         self.notebook.add(self.tab_detalle, text="Detalle Ventas")
         self.tab_detalle_venta()
         self.root.protocol("WM_DELETE_WINDOW", self.cerrar_programa)
+
 
     def crear_pestaña_registro(self):
         self.id=[]
@@ -1035,14 +1044,14 @@ class ProductoVista:
             ttk.Label(self.compatibilidad_frame, text=f"Agregar Compatibilidad al Producto: {self.nombre_entry.get()} - {self.codigo_entry.get()}").grid(row=10, column=0, columnspan=4, pady=10)
         
             ttk.Label(self.compatibilidad_frame, text="Marca:").grid(row=11, column=0, padx=5, pady=5, sticky="w")
-            self.compatibilidad_marcas_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly")
+            self.compatibilidad_marcas_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly", width=30)
             self.compatibilidad_marcas_combobox.grid(row=11, column=1, padx=5, pady=5, sticky="w")
             self.cargar_marca_compatibilicad_combobox()
 
             self.compatibilidad_marcas_combobox.bind("<<ComboboxSelected>>", self.actualizar_modelos_compatibilidad)
 
             ttk.Label(self.compatibilidad_frame, text="Modelo:").grid(row=11, column=2, padx=5, pady=5, sticky="w")
-            self.compatibilidad_modelo_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly")
+            self.compatibilidad_modelo_combobox = ttk.Combobox(self.compatibilidad_frame, state="readonly", width=30)
             self.compatibilidad_modelo_combobox.grid(row=11, column=3, padx=5, pady=5, sticky="w")
             self.compatibilidad_modelo_combobox.state(["disabled"])
 
@@ -1096,6 +1105,9 @@ class ProductoVista:
         self.busqueda_entry_ubicacion = ttk.Entry(self.tab_ubicacion, width=65)
         self.busqueda_entry_ubicacion.pack(padx=5, pady=5)
 
+        self.busqueda_entry_ubicacion.bind("<KeyRelease>", self.buscar_product_event)
+
+
         self.buscar_button = tk.Button(self.tab_ubicacion, text="Buscar", bg="green", fg="white", bd=3, activebackground="darkgreen",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold"), command=self.buscar_product, width=15)
         self.buscar_button.pack(pady=5)
@@ -1141,7 +1153,9 @@ class ProductoVista:
         self.resultados_tree_ubicacion.bind("<Double-1>", self.agregar_ubicacion_producto)
 
 
-
+    def buscar_product_event(self, event):
+        """Método que se ejecuta cuando se suelta una tecla."""
+        self.buscar_product()
     def buscar_product(self):
         nombre = self.busqueda_entry_ubicacion.get()
         resultados = self.controlador.buscar_product(nombre)
@@ -1194,7 +1208,9 @@ class ProductoVista:
             seccion = seccion_entry.get()
             piso = piso_entry.get()
             cantidad = cantidad_entry.get()
-
+            if cantidad == 0:
+                messagebox.showerror("Error", "No se pueden guardar 0 productos.")
+                return
             if not (pasillo and seccion and piso and cantidad):
                 messagebox.showerror("Error", "Todos los campos son obligatorios.")
                 return
@@ -1232,11 +1248,10 @@ class ProductoVista:
             editar_window = Toplevel(self.root, bg="beige")
             editar_window.title(f"Editar Producto - {producto[3]}")
             editar_window.geometry("800x600")
-            editar_window.resizable(False, False)
+            #editar_window.resizable(False, False)
             editar_window.attributes("-fullscreen", False)
 
-            editar_window.resizable(False, False)
-            editar_window.attributes("-fullscreen", False)
+
 
             # Canvas para scroll
             canvas = Canvas(editar_window, bg="beige")
@@ -1325,7 +1340,7 @@ class ProductoVista:
                 for compatible in compatibilidad:
 
                     compa_frame = Frame(contenidoa_frame, bg="beige")
-                    compa_frame.pack(fill="x", padx=10, pady=10)
+                    compa_frame.pack(fill="x", padx=10, pady=0)
 
                     # Crear variables independientes para cada iteración
                     id_compatibilidad_list.append(compatible[7])
@@ -1333,20 +1348,22 @@ class ProductoVista:
                     tk.Button(compa_frame, text="Eliminar Compatibilidad", bg="red", fg="white", bd=3, activebackground="red3",  # Fondo al presionar
                       activeforeground="white",  font=("Arial", 10, "bold"), command=lambda id=compatible[7]: eliminar_compatibilidad(id)).grid(row=0, column=1, padx=5)
                     # Campos adicionales
-                    tk.Label(compa_frame, text="Cilindrada:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, pady=5, sticky="w")
-                    cilindrada1_entry = ttk.Entry(compa_frame)
+                    compa_frame_campos = Frame(contenidoa_frame, bg="beige")
+                    compa_frame_campos.pack(fill="x", padx=10, pady=0)
+                    tk.Label(compa_frame_campos, text="Cilindrada:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, pady=5, sticky="w")
+                    cilindrada1_entry = ttk.Entry(compa_frame_campos)
                     cilindrada1_entry.insert(0, compatible[4] if compatible[4] is not None else "")
                     cilindrada1_entry.grid(row=1, column=1, pady=5)
                     cilindrada_entry_list.append(cilindrada1_entry)
 
-                    tk.Label(compa_frame, text="Año 1:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=2, padx=5, pady=5, sticky="w")
-                    año11_entry = ttk.Entry(compa_frame)
+                    tk.Label(compa_frame_campos, text="Año 1:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=2, padx=5, pady=5, sticky="w")
+                    año11_entry = ttk.Entry(compa_frame_campos)
                     año11_entry.insert(0, compatible[5] if compatible[5] is not None else "")
                     año11_entry.grid(row=1, column=3, padx=5, pady=5)
                     año_1_entry_list.append(año11_entry)
 
-                    tk.Label(compa_frame, text="Año 2:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=4, padx=5, pady=5, sticky="w")
-                    año21_entry = ttk.Entry(compa_frame)
+                    tk.Label(compa_frame_campos, text="Año 2:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=4, padx=5, pady=5, sticky="w")
+                    año21_entry = ttk.Entry(compa_frame_campos)
                     año21_entry.insert(0, compatible[6] if compatible[6] is not None else "")
                     año21_entry.grid(row=1, column=5, padx=5, pady=5)
                     año_2_entry_list.append(año21_entry)
@@ -1464,7 +1481,6 @@ class ProductoVista:
                             self.modelo.cargar_imagenes_new(imagen_list, id_producto)
                             messagebox.showinfo("Imágenes cargadas", f"Se cargaron {len(files)} imágenes.")
                             add_Imagenes.destroy()
-                            print("aaa")
                             ver_imagenes_vista()
                         else:
                             messagebox.showwarning("Advertencia", "No se seleccionaron imágenes.")
@@ -1560,7 +1576,7 @@ class ProductoVista:
                 
                 add_compatibilidad = Toplevel(self.root, bg="beige")
                 add_compatibilidad.title(f"Agregar Compatibilidad - {producto1_entry.get()}")
-                add_compatibilidad.geometry("520x230")
+                add_compatibilidad.geometry("590x220")
 
                 add_compatibilidad.resizable(False, False)
                 add_compatibilidad.attributes("-fullscreen", False)
@@ -1574,14 +1590,14 @@ class ProductoVista:
                 add_compatibilidad_frame.pack(fill="x", padx=10, pady=10)
 
                 ttk.Label(add_compatibilidad_frame, text="Marca:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-                compatibilidad_add_marcas_combobox = ttk.Combobox(add_compatibilidad_frame, state="readonly")
+                compatibilidad_add_marcas_combobox = ttk.Combobox(add_compatibilidad_frame, state="readonly", width=30)
                 compatibilidad_add_marcas_combobox.grid(row=1, column=1, padx=5, pady=5, sticky="w")
                 cargar_marca_add_compatibilicad_combobox()
 
                 compatibilidad_add_marcas_combobox.bind("<<ComboboxSelected>>", actualizar_modelos_add_compatibilidad)
 
                 ttk.Label(add_compatibilidad_frame, text="Modelo:").grid(row=1, column=2, padx=5, pady=5, sticky="w")
-                compatibilidad_add_modelo_combobox = ttk.Combobox(add_compatibilidad_frame, state="readonly")
+                compatibilidad_add_modelo_combobox = ttk.Combobox(add_compatibilidad_frame, state="readonly", width=30)
                 compatibilidad_add_modelo_combobox.grid(row=1, column=3, padx=5, pady=5, sticky="w")
                 compatibilidad_add_modelo_combobox.state(["disabled"])
 
@@ -1831,12 +1847,15 @@ class ProductoVista:
         tree_frame_busca_titulo = tk.Frame(self.tab_busqueda, bg="beige")
         tree_frame_busca_titulo.pack(fill="x", padx=5, pady=5)
         ttk.Label(tree_frame_busca_titulo, text="Buscar Producto:", font=("Arial", 10, "bold")).pack(padx=5, pady=5)
-
+        
         tree_frame_buscar = tk.Frame(self.tab_busqueda, bg="beige")
         tree_frame_buscar.pack(fill="x", padx=5, pady=5)
 
         self.busqueda_entry = ttk.Entry(tree_frame_buscar, width=65)
         self.busqueda_entry.pack(padx=5, pady=5)
+
+        self.busqueda_entry.bind("<KeyRelease>", self.buscar_product_event_venta)
+
 
         self.buscar_button = tk.Button(tree_frame_buscar, text="Buscar", command=self.buscar_producto, bg="green", fg="white", bd=3, width=15, 
                                         activebackground="darkgreen", activeforeground="white", font=("Arial", 10, "bold"))
@@ -1880,6 +1899,9 @@ class ProductoVista:
         # Doble clic en un producto para ver detalles
         self.resultados_tree.bind("<Double-1>", self.ver_detalles_producto)
 
+    def buscar_product_event_venta(self, event):
+        """Método que se ejecuta cuando se suelta una tecla."""
+        self.buscar_producto()
 
     def buscar_producto(self):
         nombre = self.busqueda_entry.get()
@@ -1908,26 +1930,31 @@ class ProductoVista:
 
         # Combobox de marcas
         ttk.Label(tree_frame_buscar, text="Marca:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.marcas2_combobox = ttk.Combobox(tree_frame_buscar, state="readonly")
+        self.marcas2_combobox = ttk.Combobox(tree_frame_buscar, state="readonly", width=30)
         self.marcas2_combobox.grid(row=1, column=1, padx=5, pady=5)
         self.cargar_marca_combobox2()
+        self.marcas2_combobox.bind("<<ComboboxSelected>>", self.buscar_product_event_marca_combo)
 
         # Combobox de modelos
         ttk.Label(tree_frame_buscar, text="Modelo:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        self.modelo2_combobox = ttk.Combobox(tree_frame_buscar, state="readonly")
+        self.modelo2_combobox = ttk.Combobox(tree_frame_buscar, state="readonly", width=30)
         self.modelo2_combobox.grid(row=2, column=1, padx=5, pady=5)
         self.modelo2_combobox.state(["disabled"])
-        self.marcas2_combobox.bind("<<ComboboxSelected>>", self.actualizar_modelos2)
+        self.modelo2_combobox.bind("<<ComboboxSelected>>", self.buscar_product_event_marca)
 
         # Campo de entrada para año
         ttk.Label(tree_frame_buscar, text="Año:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
         self.año_marca_entry = ttk.Entry(tree_frame_buscar)
         self.año_marca_entry.grid(row=3, column=1, padx=5, pady=5)
 
+        self.año_marca_entry.bind("<KeyRelease>", self.buscar_product_event_marca)
+
         # Campo de entrada para cilindrada
         ttk.Label(tree_frame_buscar, text="Cilindrada:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         self.cilindrada_marca_entry = ttk.Entry(tree_frame_buscar)
         self.cilindrada_marca_entry.grid(row=4, column=1, padx=5, pady=5)
+
+        self.cilindrada_marca_entry.bind("<KeyRelease>", self.buscar_product_event_marca)
 
         tree_frame_busca_bot = tk.Frame(self.tab_busqueda_marca, bg="beige")
         tree_frame_busca_bot.grid(row=2, column=0, columnspan=2)
@@ -1980,6 +2007,15 @@ class ProductoVista:
 
         # Doble clic en un producto para ver detalles
         self.resultados_marca1_tree.bind("<Double-1>", self.ver_detalles_producto_marca)
+
+    def buscar_product_event_marca_combo(self, event):
+        """Método que se ejecuta cuando se suelta una tecla."""
+        self.actualizar_modelos2()
+        self.buscar_producto_marca()
+
+    def buscar_product_event_marca(self, event):
+        """Método que se ejecuta cuando se suelta una tecla."""
+        self.buscar_producto_marca()
 
     def buscar_producto_marca(self):
         # Obtener valores de los campos
@@ -2074,7 +2110,7 @@ class ProductoVista:
         detalles_window.title("Detalles del Producto")
         detalles_window.geometry("800x600")
 
-        detalles_window.resizable(False, False)
+        #detalles_window.resizable(False, False)
         detalles_window.attributes("-fullscreen", False)
 
         # Canvas para scroll
@@ -2379,8 +2415,8 @@ class ProductoVista:
 
     def crear_pestaña_marca(self):
         # Campos de entrada
-        ttk.Label(self.tab_marca, text="Nombre:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.nombre_marca_entry = ttk.Entry(self.tab_marca)
+        ttk.Label(self.tab_marca, text="Nombre:").grid(row=0, column=0, padx=15, pady=5, sticky="w")
+        self.nombre_marca_entry = ttk.Entry(self.tab_marca, width=30)
         self.nombre_marca_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
         """ttk.Label(self.tab_marca, text="Logo:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
@@ -2392,8 +2428,54 @@ class ProductoVista:
         # Botón para guardar
         self.guardar_button = tk.Button(self.tab_marca, text="Guardar", command=self.guardar_marcas, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold"))
-        self.guardar_button.grid(row=2, column=0, columnspan=2, pady=10)
+        self.guardar_button.grid(row=1, column=0, padx=15, pady=10)
 
+        self.ver_marca_button = tk.Button(self.tab_marca, text="Ver Marcas", command=self.ver_marcas, bg="Blue", fg="white", bd=3, width=15, activebackground="darkBlue",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
+        self.ver_marca_button.grid(row=1, column=1, pady=10)
+
+
+    def ver_marcas(self):
+        self.ver_marca_window = Toplevel(self.root, bg="beige")
+        self.ver_marca_window.title("Ver Marcas")
+        self.ver_marca_window.geometry("270x80")
+
+        self.ver_marca_window.resizable(False, False)
+        self.ver_marca_window.attributes("-fullscreen", False)
+
+        ttk.Label(self.ver_marca_window, text="Marca:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.marca_combobox_ver = ttk.Combobox(self.ver_marca_window, state="readonly", width=30)
+        self.marca_combobox_ver.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        self.cargar_marcas_ver_combobox()
+
+        self.ver_eliminar_marca_button = tk.Button(self.ver_marca_window, text="Eliminar Marca", command=self.eliminar_marca, bg="red", fg="white", bd=3, width=15, activebackground="red3",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
+        self.ver_eliminar_marca_button.grid(row=2, column=0, columnspan=2, pady=10)
+
+
+    def eliminar_marca(self):
+        if not self.marca_combobox_ver.get():
+            messagebox.showerror("Error", "Debe seleccionar una marca.")
+            return
+
+        # Obtener id de la marca seleccionada
+        marca_seleccionada = self.marca_combobox_ver.get()
+        id_marca = self.marcas_diccionario.get(marca_seleccionada)
+
+        modelo = ProductoModelo()
+        modelo.cursor.execute(f"delete from marcas where id_marca={id_marca}")
+        self.ver_marca_window.destroy()
+
+    def cargar_marcas_ver_combobox(self):
+        # Obtener marcas desde la base de datos
+        marcas = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
+        if marcas:
+
+            self.marcas_diccionario = {nombre_marca: id_marca for id_marca, nombre_marca in marcas}
+            self.marca_combobox_ver["values"] = list(self.marcas_diccionario.keys())
+
+        else:
+            self.marca_combobox_ver["values"] = []
 
     """def cargar_imagenes_marca(self):
         files = filedialog.askopenfilenames(filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg")])
@@ -2425,11 +2507,11 @@ class ProductoVista:
     def crear_pestaña_modelo(self):
         # Campos de entrada
         ttk.Label(self.tab_modelo, text="Nombre:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.nombre_modelo_entry = ttk.Entry(self.tab_modelo)
+        self.nombre_modelo_entry = ttk.Entry(self.tab_modelo, width=30)
         self.nombre_modelo_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         ttk.Label(self.tab_modelo, text="Marca:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.marca_combobox = ttk.Combobox(self.tab_modelo, state="readonly")
+        self.marca_combobox = ttk.Combobox(self.tab_modelo, state="readonly", width=30)
         self.marca_combobox.grid(row=0, column=1, padx=5, pady=5, sticky="w")
         self.cargar_marcas_combobox()
         
@@ -2442,7 +2524,82 @@ class ProductoVista:
         # Botón para guardar
         self.guardar_button = tk.Button(self.tab_modelo, text="Guardar", command=self.guardar_modelo, bg="green", fg="white", bd=3, width=15, activebackground="darkgreen",  # Fondo al presionar
                                         activeforeground="white",  font=("Arial", 10, "bold"))
-        self.guardar_button.grid(row=3, column=0, columnspan=2, pady=10)
+        self.guardar_button.grid(row=3, column=0, padx=5, pady=10)
+        self.ver_modelo_button = tk.Button(self.tab_modelo, text="Ver Modelos", command=self.ver_modelos, bg="Blue", fg="white", bd=3, width=15, activebackground="darkBlue",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
+        self.ver_modelo_button.grid(row=3, column=1, pady=10)
+
+
+    def ver_modelos(self):
+        self.ver_modelo_window = Toplevel(self.root, bg="beige")
+        self.ver_modelo_window.title("Ver Modelos")
+        self.ver_modelo_window.geometry("290x120")
+
+        self.ver_modelo_window.resizable(False, False)
+        self.ver_modelo_window.attributes("-fullscreen", False)
+
+        ttk.Label(self.ver_modelo_window, text="Marca:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.marca_combobox_ver2 = ttk.Combobox(self.ver_modelo_window, state="readonly", width=30)
+        self.marca_combobox_ver2.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        self.cargar_marcas_ver_combobox2()
+        self.marca_combobox_ver2.bind("<<ComboboxSelected>>", self.actualizar_modelos_ver)
+        ttk.Label(self.ver_modelo_window, text="Modelo:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.modelo_combobox_ver2 = ttk.Combobox(self.ver_modelo_window, state="readonly", width=30)
+        self.modelo_combobox_ver2.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+
+        self.ver_eliminar_modelo_button = tk.Button(self.ver_modelo_window, text="Eliminar Modelo", command=self.eliminar_modelo, bg="red", fg="white", bd=3, width=15, activebackground="red3",  # Fondo al presionar
+                                        activeforeground="white",  font=("Arial", 10, "bold"))
+        self.ver_eliminar_modelo_button.grid(row=2, column=0, columnspan=2, pady=10)
+
+    
+    def actualizar_modelos_ver(self, event=None):
+        """Actualiza el combobox de modelos basado en la marca seleccionada y limpia la selección del modelo."""
+        marca_seleccionada = self.marca_combobox_ver2.get()
+        if not marca_seleccionada:
+            return
+        
+        # Obtener el ID de la marca seleccionada
+        id_marca = self.marcas_diccionario.get(marca_seleccionada)
+        # Obtener los modelos asociados a la marca
+        modelos = self.controlador.obtener_modelos(id_marca)  # Devuelve lista de tuplas (id_modelo, nombre)
+        if modelos:
+            self.modelos_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
+            self.modelos_diccionario.update({nombre_marca: id_marca for id_marca, nombre_marca in modelos})
+            self.modelo_combobox_ver2["values"] = list(self.modelos_diccionario.keys())
+            self.modelo_combobox_ver2.state(["!disabled"])
+        else:
+            self.modelo_combobox_ver2["values"] = []
+            self.modelo_combobox_ver2.state(["disabled"])
+
+        # Limpiar la selección actual del combobox de modelos
+        self.modelo_combobox_ver2.set("")  # Borra la selección actual
+
+    def eliminar_modelo(self):
+        if not self.marca_combobox_ver2.get():
+            messagebox.showerror("Error", "Debe seleccionar una marca.")
+            return
+        if not self.modelo_combobox_ver2.get():
+            messagebox.showerror("Error", "Debe seleccionar un modelo.")
+            return
+
+        modelo_seleccionado = self.modelo_combobox_ver2.get()
+        id_modelo = int(self.modelos_diccionario.get(modelo_seleccionado))
+        modelo = ProductoModelo()
+        modelo.cursor.execute("""update modelo set nombre=%s where id_modelo=%s""", ("No disponible", id_modelo,))
+        modelo.conn.commit()
+        self.ver_modelo_window.destroy()
+
+    def cargar_marcas_ver_combobox2(self):
+        # Obtener marcas desde la base de datos
+        marcas = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
+        if marcas:
+
+            self.marcas_diccionario = {nombre_marca: id_marca for id_marca, nombre_marca in marcas}
+            self.marca_combobox_ver2["values"] = list(self.marcas_diccionario.keys())
+
+        else:
+            self.marca_combobox_ver2["values"] = []
     
     def cargar_marcas_combobox(self):
         # Obtener marcas desde la base de datos
@@ -2565,17 +2722,30 @@ class ProductoVista:
             return messagebox.showerror("Error", "No se pudo encontrar el producto.")
         else:
             messagebox.showinfo("Éxito", "Producto agregado correctamente")
+        # Calcular precio unitario del producto
+        precio_unitario = producto[4]
 
-        # Calcular precio total por cantidad
-        precio_total = producto[4] * cantidad
-        # Agregar al carrito
+        # Verificar si el producto ya existe en el carrito
+        for item in self.carrito:
+            if item["codigo"] == producto[0] and item["id_ubi"] == id_ubi:
+                # Actualizar la cantidad y el precio total del producto existente
+                item["cantidad"] += cantidad
+                item["precio_total"] = item["cantidad"] * precio_unitario
+
+                # Actualizar total final
+                self.total_final += precio_unitario * cantidad
+                self.actualizar_tabla_carro()
+                return
+
+        # Si no existe, agregar un nuevo producto al carrito
+        precio_total = precio_unitario * cantidad
         self.carrito.append({
             "codigo": producto[0],
             "marca": producto[2],
             "modelo": producto[3],
             "nombre": producto[1],
             "cantidad": cantidad,
-            "precio_unitario": producto[4],
+            "precio_unitario": precio_unitario,
             "precio_total": precio_total,
             "id_producto": id_producto,
             "id_ubi": id_ubi,
@@ -2901,41 +3071,41 @@ class ProductoVista:
         try:
             self.buscar_producto()
         except Exception:
-            None
+            pass
         try:
             self.buscar_producto_marca()
         except Exception:
-            None
+            pass
         try:
             self.buscar_product()
         except Exception:
-            None
+            pass
         try:
             self.cargar_ventas_diarias()
         except Exception:
-            None
+            pass
         try:
-            self.cargar_marca_combobox2()
+            self.cargar_marca_combobox2()   
             self.actualizar_modelos2()
         except Exception:
-            None 
+            pass 
         try:
             self.cargar_marcas_combobox()
         except Exception:
-            None
+            pass
         try:
             self.cargar_marca_compatibilicad_combobox()
             self.actualizar_modelos_compatibilidad()
         except Exception:
-            None
+            pass
         try:
             self.actualizar_modelos_compatibilidad()
         except Exception:
-            None
+            pass
         try:
             self.cargar_marca_compatibilicad_combobox()
         except Exception:
-            None
+            pass
 
 
 class ProductoControlador:
@@ -3143,9 +3313,10 @@ class ProductoControlador:
     def obtener_producto_carro(self, id_producto, id_ubi, cantidad, compatibilidad):
         try:
             
+            a=self.modelo.buscar_product_carro(id_producto, compatibilidad)
             self.modelo.update_ubi(id_ubi, cantidad, id_producto)
             
-            return self.modelo.buscar_product_carro(id_producto, compatibilidad)
+            return a
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo obtener el producto: {e}")
 

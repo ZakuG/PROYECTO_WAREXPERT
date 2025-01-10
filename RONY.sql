@@ -2,6 +2,10 @@ drop database if exists Warexpert;
 CREATE DATABASE IF NOT EXISTS Warexpert;
 USE Warexpert;
 
+create table probar(
+id integer
+);
+
 create table marcas
 (
 	id_marca integer auto_increment primary key,
@@ -15,14 +19,19 @@ create table modelo
     marca integer,
     foreign key (marca) references marcas(id_marca) ON DELETE CASCADE
 );
-
+CREATE TABLE CATEGORIA(
+	id_categoria integer auto_increment primary key,
+    nombre varchar(55)
+);
 -- Tabla para productos principales (atributos únicos de cada producto)
 CREATE TABLE Productos (
     id_producto integer AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(255) NOT NULL,
     descripcion varchar(355),
     cantidad_TOTAl integer,
-    codigo_producto varchar(255) NOT NULL
+    codigo_producto varchar(255) NOT NULL,
+    categoria integer,
+    foreign key (categoria) references CATEGORIA(id_categoria)
 );
 
 create table compatibilidad_producto(
