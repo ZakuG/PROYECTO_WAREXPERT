@@ -65,11 +65,11 @@ class ProductoModelo:
         except Exception as e:
             self.conn.rollback()
             raise e
-    def agregar_producto(self, nombre, descripcion, codigo, precio, costo, largo, ancho, altura, imagenes):
+    def agregar_producto(self, nombre, descripcion, codigo, precio, costo, largo, ancho, altura, imagenes, categoria):
 
         try:
             
-            self.cursor.execute("INSERT INTO Productos (nombre, descripcion, codigo_producto) VALUES (%s, %s, %s)", (nombre, descripcion, codigo))
+            self.cursor.execute("INSERT INTO Productos (nombre, descripcion, codigo_producto, categoria) VALUES (%s, %s, %s, %s)", (nombre, descripcion, codigo, categoria))
             producto_id = self.cursor.lastrowid
             
             self.cursor.execute("INSERT INTO Precios (precio_cliente, costo_empresa, id_producto) VALUES (%s, %s, %s)", (precio, costo, producto_id))
@@ -141,6 +141,9 @@ class ProductoModelo:
         self.cursor.execute("SELECT id_marca, nombre FROM marcas order by nombre")
         return self.cursor.fetchall()
     
+    def buscar_categoria(self):
+        self.cursor.execute("SELECT id_categoria, nombre FROM categoria order by nombre")
+        return self.cursor.fetchall()
     def buscar_modelo(self, id):
         self.cursor.execute(f"SELECT id_modelo, nombre FROM modelo where marca={id} order by nombre")
         return self.cursor.fetchall()
@@ -174,7 +177,7 @@ class ProductoModelo:
             # Consulta final
             consulta = f"""
                             SELECT 
-                                p.codigo_producto, m.nombre, mo.nombre,
+                                p.codigo_producto, m.nombre, mo.nombre, cat.nombre,
                                 p.nombre, p.descripcion, cp.cilindrada, 
                                 cp.año0, cp.año1, p.Cantidad_Total, 
                                 pr.precio_cliente, pr.costo_empresa, p.id_producto, cp.id_compatibilidad_producto
@@ -196,10 +199,13 @@ class ProductoModelo:
                                     Precios as pr 
                                 on 
                                     pr.id_producto=p.id_producto
-                                
+                                left join
+                                    Categoria as cat
+                                on
+                                    p.categoria = cat.id_categoria
                                 WHERE 
-                                    p.cantidad_total>0 and {where_clause} ORDER BY 
-                                m.nombre, mo.nombre, p.nombre;
+                                    {where_clause} ORDER BY 
+                                m.nombre, mo.nombre, cat.nombre, p.nombre;
                         """
             # Ejecuta la consulta
             self.cursor.execute(consulta, tuple(parametros))
@@ -215,7 +221,7 @@ class ProductoModelo:
         except ValueError:
             return False
 
-    def buscar_producto_marca(self, id_marca=None, id_modelo=None, año=None, cilindrada=None):
+    def buscar_producto_marca(self, id_marca=None, id_modelo=None, año=None, cilindrada=None, categoria_id=None):
         try:
             # Construye las condiciones dinámicamente
             condiciones = []
@@ -228,7 +234,10 @@ class ProductoModelo:
             if id_modelo:
                 condiciones.append("mo.id_modelo = %s")
                 parametros.append(id_modelo)
-
+            
+            if categoria_id:
+                condiciones.append("cat.id_categoria = %s")
+                parametros.append(categoria_id)
             if año:
                 condiciones.append("(cp.año0 <= %s AND cp.año1 >= %s)")
                 parametros.extend([int(año), int(año)])
@@ -247,7 +256,7 @@ class ProductoModelo:
             # Consulta final
             consulta = f"""
                             SELECT 
-                                p.codigo_producto, m.nombre, mo.nombre, 
+                                p.codigo_producto, m.nombre, mo.nombre, cat.nombre, 
                                 p.nombre, p.descripcion, cp.cilindrada, 
                                 cp.año0, cp.año1, p.Cantidad_Total, 
                                 pr.precio_cliente, pr.costo_empresa, p.id_producto, cp.id_compatibilidad_producto
@@ -268,11 +277,15 @@ class ProductoModelo:
                                 left join 
                                     Precios as pr 
                                 on 
-                                    pr.id_producto=p.id_producto 
+                                    pr.id_producto=p.id_producto
+                                left join
+                                    Categoria as cat
+                                on
+                                    p.categoria = cat.id_categoria
                                 WHERE 
                                     {where_clause} 
                                 ORDER BY 
-                                    m.nombre, mo.nombre, p.nombre;
+                                    m.nombre, mo.nombre, cat.nombre, p.nombre;
                         """
 
             # Ejecuta la consulta
@@ -868,47 +881,55 @@ class ProductoVista:
 
     def crear_pestaña_registro(self):
         self.id=[]
+
+        
+
         datos_frame = Frame(self.tab_registro, bg="beige")
         datos_frame.pack(fill="x", padx=10, pady=10)
         # Campos de entrada
-        ttk.Label(datos_frame, text="Nombre:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        # Combobox de marcas
+        ttk.Label(datos_frame, text="Categoria:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.categoria_combobox_v1 = ttk.Combobox(datos_frame, state="readonly", width=30)
+        self.categoria_combobox_v1.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        self.cargar_categoria_combobox_v2()
+
+        ttk.Label(datos_frame, text="Nombre:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.nombre_entry = ttk.Entry(datos_frame, width=75)
-        self.nombre_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.nombre_entry.grid(row=1, column=1, padx=5, pady=5)
 
-        ttk.Label(datos_frame, text="Descripción:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Descripción:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         self.descripcion_entry = ttk.Entry(datos_frame, width=75)
-        self.descripcion_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.descripcion_entry.grid(row=2, column=1, padx=5, pady=5)
 
-
-        ttk.Label(datos_frame, text="Código Producto:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Código Producto:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
         self.codigo_entry = ttk.Entry(datos_frame, width=75)
-        self.codigo_entry.grid(row=2, column=1, padx=5, pady=5)
+        self.codigo_entry.grid(row=3, column=1, padx=5, pady=5)
 
-        ttk.Label(datos_frame, text="Precio Cliente:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Precio Cliente:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         self.precio_entry = ttk.Entry(datos_frame)
-        self.precio_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+        self.precio_entry.grid(row=4, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(datos_frame, text="Costo Empresa:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Costo Empresa:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
         self.costo_entry = ttk.Entry(datos_frame)
-        self.costo_entry.grid(row=4, column=1, padx=5, pady=5, sticky="w")
+        self.costo_entry.grid(row=5, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(datos_frame, text="Largo (cm):").grid(row=5, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Largo (cm):").grid(row=6, column=0, padx=5, pady=5, sticky="w")
         self.largo_entry = ttk.Entry(datos_frame)
-        self.largo_entry.grid(row=5, column=1, padx=5, pady=5, sticky="w")
+        self.largo_entry.grid(row=6, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(datos_frame, text="Ancho (cm):").grid(row=6, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Ancho (cm):").grid(row=7, column=0, padx=5, pady=5, sticky="w")
         self.ancho_entry = ttk.Entry(datos_frame)
-        self.ancho_entry.grid(row=6, column=1, padx=5, pady=5, sticky="w")
+        self.ancho_entry.grid(row=7, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(datos_frame, text="Altura (cm):").grid(row=7, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Altura (cm):").grid(row=8, column=0, padx=5, pady=5, sticky="w")
         self.altura_entry = ttk.Entry(datos_frame)
-        self.altura_entry.grid(row=7, column=1, padx=5, pady=5, sticky="w")
+        self.altura_entry.grid(row=8, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(datos_frame, text="Imágenes:").grid(row=8, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(datos_frame, text="Imágenes:").grid(row=9, column=0, padx=5, pady=5, sticky="w")
         self.imagenes_list = []
         self.imagenes_button = tk.Button(datos_frame, text="Cargar Imágenes", bg="salmon4", fg="beige", bd=3, activebackground="coral4",  # Fondo al presionar
                                         activeforeground="beige", font=("Arial", 10, "bold"), command=self.cargar_imagenes)
-        self.imagenes_button.grid(row=8, column=1, padx=5, pady=5, sticky="w")
+        self.imagenes_button.grid(row=9, column=1, padx=5, pady=5, sticky="w")
 
         buttona_frame = Frame(self.tab_registro, bg="beige")
         buttona_frame.pack(fill="x")
@@ -920,6 +941,17 @@ class ProductoVista:
 
         self.compatibilidad_frame = Frame(self.tab_registro, bg="beige")
         self.compatibilidad_frame.pack(fill="x", padx=10)
+
+    
+    def cargar_categoria_combobox_v2(self):
+        categorias = self.controlador.obtener_categorias()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
+        if categorias:
+            self.categorias_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
+            self.categorias_diccionario.update({nombre_categoria: id_categoria for id_categoria, nombre_categoria in categorias})
+            self.categoria_combobox_v1["values"] = list(self.categorias_diccionario.keys())
+        else:
+            self.categoria_combobox_v1["values"] = []
+
 
     def cargar_marca_compatibilicad_combobox(self):
         # Obtener marcas desde la base de datos
@@ -1034,7 +1066,8 @@ class ProductoVista:
             "largo": float(self.largo_entry.get()) if self.largo_entry.get() else None,
             "ancho": float(self.ancho_entry.get()) if self.ancho_entry.get() else None,
             "altura": float(self.altura_entry.get()) if self.altura_entry.get() else None, 
-            "imagenes": self.imagenes_list
+            "imagenes": self.imagenes_list,
+            "categoria": self.categorias_diccionario.get(self.categoria_combobox_v1.get())
         }
         
         id, boolean = self.controlador.guardar_producto(datos)
@@ -1085,6 +1118,7 @@ class ProductoVista:
             self.precio_entry.delete(0, END)
             self.costo_entry.delete(0, END)
             self.imagenes_list = []
+            self.categoria_combobox_v1.set("")
         try:
             self.buscar_producto()
         except Exception:
@@ -1846,10 +1880,10 @@ class ProductoVista:
     def crear_pestaña_busqueda(self):
         tree_frame_busca_titulo = tk.Frame(self.tab_busqueda, bg="beige")
         tree_frame_busca_titulo.pack(fill="x", padx=5, pady=5)
-        ttk.Label(tree_frame_busca_titulo, text="Buscar Producto:", font=("Arial", 10, "bold")).pack(padx=5, pady=5)
+        ttk.Label(tree_frame_busca_titulo, text="Buscar Producto:", font=("Arial", 10, "bold")).pack()
         
         tree_frame_buscar = tk.Frame(self.tab_busqueda, bg="beige")
-        tree_frame_buscar.pack(fill="x", padx=5, pady=5)
+        tree_frame_buscar.pack(fill="x")
 
         self.busqueda_entry = ttk.Entry(tree_frame_buscar, width=65)
         self.busqueda_entry.pack(padx=5, pady=5)
@@ -1875,7 +1909,7 @@ class ProductoVista:
         # Treeview
         self.resultados_tree = ttk.Treeview(
             tree_frame,
-            columns=("Código", "Marca", "Modelo", "Nombre", "Descripción", "Cilindrada", "Año 1", "Año 2", "Cantidad Total", "Precio", "Costo"),
+            columns=("Código", "Marca", "Modelo", "Categoria", "Nombre", "Descripción", "Cilindrada", "Año", "Cantidad Total", "Precio", "Costo"),
             show="headings",
             xscrollcommand=x_scroll.set,
             yscrollcommand=y_scroll.set
@@ -1883,8 +1917,8 @@ class ProductoVista:
 
         # Configurar encabezados
         encabezados = [
-            "Código Producto", "Marca", "Modelo", "Nombre", "Descripción",
-            "Cilindrada", "Año 1", "Año 2", "Cantidad Total", "Precio", "Costo"
+            "Código Producto", "Marca", "Modelo", "Categoria", "Nombre", "Descripción",
+            "Cilindrada", "Año", "Cantidad Total", "Precio", "Costo"
         ]
         for col, texto in zip(self.resultados_tree["columns"], encabezados):
             self.resultados_tree.heading(col, text=texto)
@@ -1909,14 +1943,29 @@ class ProductoVista:
         for item in self.resultados_tree.get_children():
             self.resultados_tree.delete(item)
         for row in resultados:
-        # Reemplaza valores nulos con 'No disponible'
             row = [value if value is not None else "No disponible" for value in row]
+            # Combinar cp.año0 y cp.año1 en un solo valor
+            if row[7] != "No disponible" and row[8] != "No disponible":
+                row[7] = f"{row[7]}-{row[8]}"  # Formato "2015-2020"
+            elif row[8] != "No disponible":
+                row[7] = str(row[7])  # Si solo está año0
+            elif row[8] != "No disponible":
+                row[7] = str(row[8])  # Si solo está año1
+            elif row[7] == row[8]:
+                row[7] = row[7]
+            else:
+                row[7] = "No disponible"  # Ambos están vacíos
+            
+            # Elimina cp.año1 del resultado
+            row[8] = row[9]
+            row[9] = row[10]
+            row[10] = row[11]
             self.resultados_tree.insert("", "end", values=row)
 
     def ver_detalles_producto(self, event):
         item = self.resultados_tree.selection()[0]
-        id_producto = self.resultados_tree.item(item, "values")[11]
-        id_compatibilidad = self.resultados_tree.item(item, "values")[12]
+        id_producto = self.resultados_tree.item(item, "values")[12]
+        id_compatibilidad = self.resultados_tree.item(item, "values")[13]
         self.controlador.mostrar_detalles_producto(id_producto, id_compatibilidad)
 
     def crear_pestaña_busqueda_marca(self):
@@ -1942,17 +1991,24 @@ class ProductoVista:
         self.modelo2_combobox.state(["disabled"])
         self.modelo2_combobox.bind("<<ComboboxSelected>>", self.buscar_product_event_marca)
 
+        # Combobox de marcas
+        ttk.Label(tree_frame_buscar, text="Categoria:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.categoria_combobox = ttk.Combobox(tree_frame_buscar, state="readonly", width=30)
+        self.categoria_combobox.grid(row=3, column=1, padx=5, pady=5)
+        self.cargar_categoria_combobox()
+        self.categoria_combobox.bind("<<ComboboxSelected>>", self.buscar_product_event_marca)
+
         # Campo de entrada para año
-        ttk.Label(tree_frame_buscar, text="Año:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(tree_frame_buscar, text="Año:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         self.año_marca_entry = ttk.Entry(tree_frame_buscar)
-        self.año_marca_entry.grid(row=3, column=1, padx=5, pady=5)
+        self.año_marca_entry.grid(row=4, column=1, padx=5, pady=5)
 
         self.año_marca_entry.bind("<KeyRelease>", self.buscar_product_event_marca)
 
         # Campo de entrada para cilindrada
-        ttk.Label(tree_frame_buscar, text="Cilindrada:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(tree_frame_buscar, text="Cilindrada:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
         self.cilindrada_marca_entry = ttk.Entry(tree_frame_buscar)
-        self.cilindrada_marca_entry.grid(row=4, column=1, padx=5, pady=5)
+        self.cilindrada_marca_entry.grid(row=5, column=1, padx=5, pady=5)
 
         self.cilindrada_marca_entry.bind("<KeyRelease>", self.buscar_product_event_marca)
 
@@ -1978,7 +2034,7 @@ class ProductoVista:
         # Treeview
         self.resultados_marca1_tree = ttk.Treeview(
             tree_frame_marca,
-            columns=("Código", "Marca", "Modelo", "Nombre", "Descripción", "Cilindrada", "Año 1", "Año 2", "Cantidad Total", "Precio", "Costo"),
+            columns=("Código", "Marca", "Modelo", "Nombre", "Descripción", "Cilindrada", "Año", "Cantidad Total", "Precio", "Costo"),
             show="headings",
             xscrollcommand=x_scroll.set,
             yscrollcommand=y_scroll.set
@@ -1987,8 +2043,8 @@ class ProductoVista:
 
         # Configurar encabezados
         encabezados = [
-            "Código Producto", "Marca", "Modelo", "Nombre", "Descripción",
-            "Cilindrada", "Año 1", "Año 2", "Cantidad Total", "Precio", "Costo"
+            "Código Producto","Marca", "Modelo", "Categoria", "Nombre", "Descripción",
+            "Cilindrada", "Año", "Cantidad Total", "Precio", "Costo"
         ]
         for col, texto in zip(self.resultados_marca1_tree["columns"], encabezados):
             self.resultados_marca1_tree.heading(col, text=texto)
@@ -2023,7 +2079,7 @@ class ProductoVista:
         modelo_seleccionado = self.modelo2_combobox.get()
         año = self.año_marca_entry.get()
         cilindrada = self.cilindrada_marca_entry.get()
-
+        categoria_id = self.categorias_diccionario.get(self.categoria_combobox.get())
         # Convertir marca y modelo a IDs (si están seleccionados)
         id_marca = self.marcas_diccionario.get(marca_seleccionada)
         try:
@@ -2031,7 +2087,7 @@ class ProductoVista:
         except Exception:
             id_modelo=None
         # Realizar búsqueda con filtros
-        resultados = self.controlador.buscar_producto_marca(id_marca, id_modelo, año, cilindrada)
+        resultados = self.controlador.buscar_producto_marca(id_marca, id_modelo, año, cilindrada, categoria_id)
 
         # Limpiar resultados anteriores
         for item in self.resultados_marca1_tree.get_children():
@@ -2040,14 +2096,39 @@ class ProductoVista:
         # Mostrar resultados
         for row in resultados:
             row = [value if value is not None else "No disponible" for value in row]
-            self.resultados_marca1_tree.insert("", "end", values=row)
+            # Combinar cp.año0 y cp.año1 en un solo valor
+            if row[7] != "No disponible" and row[8] != "No disponible":
+                row[7] = f"{row[7]}-{row[8]}"  # Formato "2015-2020"
+            elif row[8] != "No disponible":
+                row[7] = str(row[7])  # Si solo está año0
+            elif row[8] != "No disponible":
+                row[7] = str(row[8])  # Si solo está año1
+            elif row[7] == row[8]:
+                row[7] = row[7]
+            else:
+                row[7] = "No disponible"  # Ambos están vacíos
+            
+            # Elimina cp.año1 del resultado
+            row[8] = row[9]
+            row[9] = row[10]
+            row[10] = row[11]
 
+            # Inserta la fila modificada en el Treeview
+            self.resultados_marca1_tree.insert("", "end", values=row)
+    def cargar_categoria_combobox(self):
+        categorias = self.controlador.obtener_categorias()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
+        if categorias:
+            self.categorias_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
+            self.categorias_diccionario.update({nombre_categoria: id_categoria for id_categoria, nombre_categoria in categorias})
+            self.categoria_combobox["values"] = list(self.categorias_diccionario.keys())
+        else:
+            self.categoria_combobox["values"] = []
     def cargar_marca_combobox2(self):
         # Obtener marcas desde la base de datos
         modelos = self.controlador.obtener_marcas()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
         if modelos:
-
-            self.marcas_diccionario = {nombre_marca: id_marca for id_marca, nombre_marca in modelos}
+            self.marcas_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
+            self.marcas_diccionario.update({nombre_marca: id_marca for id_marca, nombre_marca in modelos})
             self.marcas2_combobox["values"] = list(self.marcas_diccionario.keys())
         else:
             self.marcas2_combobox["values"] = []
@@ -2083,17 +2164,17 @@ class ProductoVista:
             if hasattr(self, "logo_label") and self.logo_label:
                 self.logo_label.destroy()
                 self.logo_label = None"""
-
-        # Obtener los modelos asociados a la marca
-        modelos = self.controlador.obtener_modelos(id_marca)  # Devuelve lista de tuplas (id_modelo, nombre)
-        if modelos:
-            self.modelos_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
-            self.modelos_diccionario.update({nombre_marca: id_marca for id_marca, nombre_marca in modelos})
-            self.modelo2_combobox["values"] = list(self.modelos_diccionario.keys())
-            self.modelo2_combobox.state(["!disabled"])
-        else:
-            self.modelo2_combobox["values"] = []
-            self.modelo2_combobox.state(["disabled"])
+        if id_marca:
+            # Obtener los modelos asociados a la marca
+            modelos = self.controlador.obtener_modelos(id_marca)  # Devuelve lista de tuplas (id_modelo, nombre)
+            if modelos:
+                self.modelos_diccionario = {"-- Ninguno --": None}  # Agregar opción "Ninguno" con ID None
+                self.modelos_diccionario.update({nombre_marca: id_marca for id_marca, nombre_marca in modelos})
+                self.modelo2_combobox["values"] = list(self.modelos_diccionario.keys())
+                self.modelo2_combobox.state(["!disabled"])
+            else:
+                self.modelo2_combobox["values"] = []
+                self.modelo2_combobox.state(["disabled"])
 
         # Limpiar la selección actual del combobox de modelos
         self.modelo2_combobox.set("")  # Borra la selección actual
@@ -2101,8 +2182,8 @@ class ProductoVista:
         self.cilindrada_marca_entry.delete(0, "end")
     def ver_detalles_producto_marca(self, event):
         item = self.resultados_marca1_tree.selection()[0]
-        id_producto = self.resultados_marca1_tree.item(item, "values")[11]
-        id_compatibilidad = self.resultados_marca1_tree.item(item, "values")[12]
+        id_producto = self.resultados_marca1_tree.item(item, "values")[12]
+        id_compatibilidad = self.resultados_marca1_tree.item(item, "values")[13]
         self.controlador.mostrar_detalles_producto(id_producto, id_compatibilidad)
 
     def mostrar_detalles_producto(self, detalles, id_producto, compatibilidad, id_compatibilidad):
@@ -2151,9 +2232,15 @@ class ProductoVista:
 
         Label(marca_frame, text="Cilindrada:", font=("Arial", 10, "bold"), bg="beige").grid(row=2, column=0, sticky="w")
         Label(marca_frame, text=detalles[0][14] if detalles[0][14] else "No agregado", font=("Arial", 10), bg="beige").grid(row=2, column=1, sticky="w")
-
+        
+        if detalles[0][15] == detalles[0][16]:
+            año = f"{detalles[0][15]}"
+        elif detalles[0][15]:
+            año = f"{detalles[0][15]} - {detalles[0][16]}"
+        else:
+            año = "No agregado"
         Label(marca_frame, text="Año:", font=("Arial", 10, "bold"), bg="beige").grid(row=3, column=0, sticky="w")
-        Label(marca_frame, text=f"{detalles[0][15]} - {detalles[0][16]}" if detalles[0][15] else "No agregado", font=("Arial", 10), bg="beige").grid(row=3, column=1, sticky="w")
+        Label(marca_frame, text=año, font=("Arial", 10), bg="beige").grid(row=3, column=1, sticky="w")
         
         info_frame = Frame(contenedor, bg="beige")
         info_frame.pack(fill="x", padx=10, pady=10)
@@ -3134,7 +3221,7 @@ class ProductoControlador:
             id = self.modelo.agregar_producto(
                 datos["nombre"], datos["descripcion"], datos["codigo"],
                 datos["precio"], datos["costo"], datos["largo"],
-                datos["ancho"], datos["altura"], datos["imagenes"]
+                datos["ancho"], datos["altura"], datos["imagenes"], datos["categoria"]
             )
             messagebox.showinfo("Éxito", "Producto registrado correctamente.")
             return(id, True)
@@ -3207,9 +3294,9 @@ class ProductoControlador:
             messagebox.showerror("Error", f"No se pudo buscar el producto: {e}")
             return []
 
-    def buscar_producto_marca(self, id_marca, id_modelo, año, cilindrada):
+    def buscar_producto_marca(self, id_marca, id_modelo, año, cilindrada, categoria_id):
         try:
-            return self.modelo.buscar_producto_marca(id_marca, id_modelo, año, cilindrada)
+            return self.modelo.buscar_producto_marca(id_marca, id_modelo, año, cilindrada, categoria_id)
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo buscar el producto: {e}")
             return []
@@ -3268,6 +3355,12 @@ class ProductoControlador:
         except Exception as e:
             self.modelo.conn.rollback()
             raise e
+    def obtener_categorias(self):
+        try:
+            return self.modelo.buscar_categoria()
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo buscar la categoria: {e}")
+            return [] 
     def obtener_marcas(self):
         try:
             return self.modelo.buscar_marca()

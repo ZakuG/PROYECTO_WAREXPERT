@@ -6,14 +6,14 @@ from mysql.connector import Error
 
 # Configuración de la conexión a la base de datos
 db_config = {
-    'host': 'Zaku',
-    'user': 'rootdos',
-    'password': '1234',
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'admin',
     'database': 'Warexpert'
 }
 
 # Ruta del archivo Excel
-excel_file = 'LISTABSALE25.xlsx'
+excel_file = 'LISTABSALE25_actualizado.xlsx'
 
 def parse_variant(variant, tipo):
     """
@@ -21,12 +21,20 @@ def parse_variant(variant, tipo):
     """
     # Diccionario para mapear abreviaturas a nombres completos
     abreviaturas = {
-        "NS": "NISSAN",
-        "TY": "TOYOTA",
-        "HD": "HONDA",
-        "HY": "HYUNDAI",
-        "CHEV": "CHEVROLET",
-        "CHV": "CHEVROLET"
+        " NS": "NISSAN",
+        " TY": "TOYOTA",
+        " HD": "HONDA",
+        " HY": "HYUNDAI",
+        " CHEV": "CHEVROLET",
+        " CHV": "CHEVROLET",
+        " SUZ": "SUZUKI",
+        " SZ": "SUZUKI",
+        " MZ": "MAZDA",
+        " MIT": "MITSUBISHI",
+        " M.": "MERCEDES",
+        " MITS": "MITSUBISHI",
+        " DH": "DAIHATSU",
+        " DW": "DAEWOO"
         # Agrega más abreviaturas aquí según sea necesario
     }
 
@@ -47,7 +55,8 @@ def parse_variant(variant, tipo):
     marcas_conocidas = [
         "HONDA", "MAZDA", "HYUNDAI", "KIA", "NISSAN", "CHEVROLET", "FORD", "TOYOTA",
         "MITSUBISHI", "VOLKSWAGEN", "CHRYSLER", "SUZUKI", "PEUGEOT", "FIAT", "RAM",
-        "JEEP", "RENAULT", "ISUZU", "DODGE", "ROVER", "LAND", "SUBARU"
+        "JEEP", "RENAULT", "ISUZU", "DODGE", "ROVER", "LAND", "SUBARU", "DAEWOO", 
+        "CITROEN", "SAMSUNG", "DAIHATSU", "MERCEDES"
     ]
     
     # Buscar todas las marcas mencionadas
@@ -80,24 +89,7 @@ def parse_variant(variant, tipo):
                 "año0": None,
                 "año1": None
                 }]
-    elif tipo == "ADITIVO":
-        return [{
-                "marca": "ADITIVO",
-                "otras_marcas": None,
-                "modelo": None,
-                "cilindrada": None,
-                "año0": None,
-                "año1": None
-                }]
-    elif tipo == "FILTRO":
-        return [{
-                "marca": "ADITIVO",
-                "otras_marcas": None,
-                "modelo": None,
-                "cilindrada": None,
-                "año0": None,
-                "año1": None
-                }]
+
     # Si no es "ACEITE", buscar modelos regulares
     elif not modelo and marca_principal:
         modelo_match = re.search(rf'{marca_principal}\.?\s+([A-Za-z0-9\-\/]+)', variant_upper)
@@ -112,20 +104,33 @@ def parse_variant(variant, tipo):
     cilindrada = float(cilindrada.group()) if cilindrada else None
 
     # Extraer rango de años (ejemplo: "98-04", "2000/10")
-    anos = re.search(r'(\d{2,4})[\-/](\d{2,4})', variant)
-    if anos:
-        ano0, ano1 = map(int, anos.groups())
-        if ano0 <= 50:
-            ano0 += 2000
-        elif ano0 < 100:
-            ano0 += 1900
-        if ano1 <= 50:
-            ano1 += 2000
-        elif ano1 <= 100:
-            ano1 += 1900
-    else:
+    if re.search(r'\b(W|WK)\s*\d', variant, re.IGNORECASE):
         ano0 = ano1 = None
-
+    else:
+        # Extraer rango de años (ejemplo: "98-04", "2000/10", "95/", "78-")
+        anos = re.search(r'(\d{2,4})[\-/]?(\d{2,4})?', variant)
+        if anos:
+            ano0, ano1 = anos.groups()
+            
+            # Convertir años a enteros si están presentes
+            ano0 = int(ano0) if ano0 else None
+            ano1 = int(ano1) if ano1 else None
+            
+            # Ajustar los años para el siglo correcto si son de dos dígitos
+            if ano0 is not None:
+                if ano0 <= 50:
+                    ano0 += 2000
+                elif ano0 < 100:
+                    ano0 += 1900
+            
+            if ano1 is not None:
+                if ano1 <= 50:
+                    ano1 += 2000
+                elif ano1 < 100:
+                    ano1 += 1900
+            
+        else:
+            ano0 = ano1 = None
     return [{
         "marca": marca_principal,
         "otras_marcas": otras_marcas,
@@ -176,21 +181,25 @@ try:
             cursor.execute("SELECT id_categoria FROM CATEGORIA WHERE nombre = %s", (row["Tipo de producto"],))
             categoria_result = cursor.fetchone()
             if not categoria_result:
-                cursor.execute("INSERT INTO categoria (nombre) VALUES (%s)", (row["Tipo de producto"],))
+                cursor.execute("INSERT INTO CATEGORIA (nombre) VALUES (%s)", (row["Tipo de producto"],))
                 categoria_id = cursor.lastrowid
-                print(row["Tipo de producto"])
+                
             else:
                 categoria_id = categoria_result[0]
 
+            if row["Código Barras"] == "":
+                print("ENTRO")
+                row["Código Barras"] = "No disponible"
             # Insertar datos en Productos
             insert_product_query = """
             INSERT INTO Productos (nombre, cantidad_TOTAl, codigo_producto, categoria)
             VALUES (%s, %s, %s, %s)
             """
+            
             product_data = (row['Variante'], 0, row['Código Barras'], int(categoria_id))
             cursor.execute(insert_product_query, product_data)
             product_id = cursor.lastrowid
-
+            
             # Insertar datos en compatibilidad_producto
             insert_compat_query = """
             INSERT INTO compatibilidad_producto (año0, año1, marca, modelo, cilindrada, producto)
