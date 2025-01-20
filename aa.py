@@ -13,7 +13,8 @@ try:
         "carroceria": "CARROCERIA",
         "EMP.": "EMPAQUETADURA",
         0: "SIN TIPO",
-        "Sin Tipo": "SIN TIPO"
+        "Sin Tipo": "SIN TIPO",
+        "RODAMIENTO": "RODAMIENTOS"
     })
     # Obtener los tipos únicos
     tipos = set(df["Tipo de producto"])

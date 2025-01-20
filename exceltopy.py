@@ -6,9 +6,9 @@ from mysql.connector import Error
 
 # Configuración de la conexión a la base de datos
 db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'admin',
+    'host': 'Zaku',
+    'user': 'rootdos',
+    'password': '1234',
     'database': 'Warexpert'
 }
 
@@ -40,8 +40,8 @@ def parse_variant(variant, tipo):
 
      # Lista de modelos conocidos
     modelos_conocidos = [
-        "YARIS", "COROLLA", "CIVIC", "ACCORD", "TUCSON", "ELANTRA", "SENTRA",
-        "VERSA", "MARCH", "AVEO", "CRUZE", "FORTUNE", "LAND CRUISER"
+        "YARIS", "COROLLA", "CIVIC", "ACCORD", "TUCSON", "ELANTRA", "SENTRA", "VITARA",
+        "VERSA", "MARCH", "AVEO", "CRUZE", "FORTUNE", "LAND CRUISER", "GETZ", "RIO", "CERATO"
         # Agrega más modelos según tu base de datos
     ]
     
@@ -55,7 +55,7 @@ def parse_variant(variant, tipo):
     marcas_conocidas = [
         "HONDA", "MAZDA", "HYUNDAI", "KIA", "NISSAN", "CHEVROLET", "FORD", "TOYOTA",
         "MITSUBISHI", "VOLKSWAGEN", "CHRYSLER", "SUZUKI", "PEUGEOT", "FIAT", "RAM",
-        "JEEP", "RENAULT", "ISUZU", "DODGE", "ROVER", "LAND", "SUBARU", "DAEWOO", 
+        "JEEP", "RENAULT", "ISUZU", "DODGE", "LAND", "SUBARU", "DAEWOO", 
         "CITROEN", "SAMSUNG", "DAIHATSU", "MERCEDES"
     ]
     
@@ -108,7 +108,8 @@ def parse_variant(variant, tipo):
         ano0 = ano1 = None
     else:
         # Extraer rango de años (ejemplo: "98-04", "2000/10", "95/", "78-")
-        anos = re.search(r'(\d{2,4})[\-/]?(\d{2,4})?', variant)
+        # Extraer rango de años (ejemplo: "2014/", "14/", "98-04", "2000/10")
+        anos = re.search(r'\b(\d{2,4})[\-/]?(\d{2,4})?\b', variant)
         if anos:
             ano0, ano1 = anos.groups()
             
@@ -118,19 +119,31 @@ def parse_variant(variant, tipo):
             
             # Ajustar los años para el siglo correcto si son de dos dígitos
             if ano0 is not None:
-                if ano0 <= 50:
+                if ano0 <= 24 and ano0 >= 0:
                     ano0 += 2000
-                elif ano0 < 100:
+                elif ano0 < 100 and ano0 >= 60:
                     ano0 += 1900
+                elif ano0 >=1960 and ano0 <= 2024:
+                    ano0 = ano0
+                else:
+                    ano0 = None
             
             if ano1 is not None:
-                if ano1 <= 50:
+                if ano1 <= 24 and ano1 >= 0:
                     ano1 += 2000
-                elif ano1 < 100:
+                elif ano1 < 100 and ano1 >= 60:
                     ano1 += 1900
-            
+                elif ano1 >= 1960 and ano1 <= 2024:
+                    ano1 = ano1
+                else:
+                    ano1 = None
+            if ano0 and ano1 is None:
+                ano1 = ano0
+            if ano1 and ano0 is None:
+                ano0 = ano1
         else:
             ano0 = ano1 = None
+
     return [{
         "marca": marca_principal,
         "otras_marcas": otras_marcas,

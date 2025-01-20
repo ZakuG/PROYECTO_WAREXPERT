@@ -1,5 +1,5 @@
 [mysql]
-host = localhost
-user = root
-password = admin
+host = Zaku
+user = rootdos
+password = 1234
 database = Warexpert

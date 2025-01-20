@@ -2,3 +2,11 @@ pyinstaller --add-data "C:\\Users\\lucas\\OneDrive\\Escritorio\\PYTHON\\Rony\\PR
 pyinstaller --noconsole --add-data "C:\\Users\\lucas\\OneDrive\\Escritorio\\PYTHON\\Rony\\PROYECTO_WAREXPERT\\db_config.txt;." --add-data "C:\\Users\\lucas\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\mysql\\connector\\locales;mysql\\connector\\locales" --hidden-import=mysql.connector --hidden-import=mysql.connector.plugins.mysql_native_password C:\Users\lucas\OneDrive\Escritorio\PYTHON\Rony\PROYECTO_WAREXPERT\Warexpert.py
 pyinstaller --noconsole --add-data "C:\\Users\\lucas\\OneDrive\\Escritorio\\PYTHON\\Rony\\PROYECTO_WAREXPERT\\db_config.txt;." --add-data "C:\\Users\\lucas\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\mysql\\connector\\locales;mysql\\connector\\locales" --hidden-import=mysql.connector --hidden-import=mysql.connector.plugins.mysql_native_password --icon="C:\\Users\\lucas\\OneDrive\\Escritorio\\PYTHON\\Rony\\warehouselogo.ico"
  C:\Users\lucas\OneDrive\Escritorio\PYTHON\Rony\PROYECTO_WAREXPERT\Warexpert.py
+
+
+CREATE USER 'usuario'@'Zaku1' IDENTIFIED BY 'contraseña';	
+GRANT ALL PRIVILEGES ON *.* TO 'usuario'@'Zaku';
+FLUSH PRIVILEGES;
+
+pyinstaller --noconsole --add-data "C:\\Users\\lucas\\OneDrive\\Escritorio\\PYTHON\\Rony\\PROYECTO_WAREXPERT\\db_config.txt;." --add-data "C:\\Users\\lucas\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\mysql\\connector\\locales;mysql\\connector\\locales" --hidden-import=mysql.connector --hidden-import=mysql.connector.plugins.mysql_native_password C:\Users\lucas\OneDrive\Escritorio\PYTHON\Rony\PROYECTO_WAREXPERT\Warexpert_emp.py
+

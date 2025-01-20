@@ -166,8 +166,8 @@ class ProductoModelo:
                     parametros.append(float(palabra))
                 else:
                     like_pattern = f"%{palabra}%"
-                    condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s OR p.codigo_producto LIKE %s)")
-                    parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern, like_pattern])
+                    condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s OR p.codigo_producto LIKE %s or cat.nombre like %s)")
+                    parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern, like_pattern, like_pattern])
 
             
 
@@ -313,8 +313,8 @@ class ProductoModelo:
                     parametros.append(float(palabra))
                 else:
                     like_pattern = f"%{palabra}%"
-                    condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s OR p.codigo_producto LIKE %s)")
-                    parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern, like_pattern])
+                    condiciones.append("(m.nombre LIKE %s OR mo.nombre LIKE %s OR p.nombre LIKE %s OR p.descripcion LIKE %s OR p.codigo_producto LIKE %s OR cat.nombre LIKE %s)")
+                    parametros.extend([like_pattern, like_pattern, like_pattern, like_pattern, like_pattern, like_pattern])
 
             # Combina las condiciones con AND para que todas las palabras coincidan
             where_clause = " AND ".join(condiciones)
@@ -322,7 +322,7 @@ class ProductoModelo:
             # Consulta final
             consulta = f"""
                 SELECT 
-                    p.codigo_producto, m.nombre, mo.nombre, p.nombre, 
+                    p.codigo_producto, m.nombre, mo.nombre, cat.nombre, p.nombre, 
                     p.descripcion, cp.cilindrada, cp.año0, cp.año1, 
                     p.Cantidad_Total, p.id_producto, pr.precio_cliente, 
                     pr.costo_empresa, d.largo, d.ancho, d.altura, 
@@ -349,10 +349,14 @@ class ProductoModelo:
                     dimensiones as d
                 ON
                     d.id_producto=p.id_producto
+                left join
+                    Categoria as cat
+                on
+                    p.categoria = cat.id_categoria
                 WHERE 
                     {where_clause}
                 ORDER BY 
-                    m.nombre, mo.nombre, p.nombre;
+                    m.nombre, mo.nombre, cat.nombre, p.nombre;
             """
 
             # Ejecuta la consulta
@@ -796,6 +800,39 @@ class ProductoModelo:
     def cerrar_conexion(self):
         self.cursor.close()
         self.conn.close()
+class LoginWindow:
+    def __init__(self, root, on_success):
+        self.root1 = root
+        self.on_success = on_success
+
+        self.root1.title("Inicio de Sesión")
+        self.root1.geometry("300x200")
+        self.root1.configure(bg="beige")
+
+        # Etiqueta y entrada para el usuario
+        tk.Label(self.root1, text="Usuario:", bg="beige", font=("Arial", 10, "bold")).pack(pady=10)
+        self.username_entry = tk.Entry(self.root1, font=("Arial", 10))
+        self.username_entry.pack(pady=5)
+
+        # Etiqueta y entrada para la contraseña
+        tk.Label(self.root1, text="Contraseña:", bg="beige", font=("Arial", 10, "bold")).pack(pady=10)
+        self.password_entry = tk.Entry(self.root1, show="*", font=("Arial", 10))
+        self.password_entry.pack(pady=5)
+
+        # Botón de iniciar sesión
+        tk.Button(self.root1, text="Iniciar Sesión", command=self.validate_login, font=("Arial", 10, "bold"), bg="tan1").pack(pady=15)
+
+    def validate_login(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        # Credenciales estáticas para este ejemplo
+        if username == "admin" and password == "1234":
+            self.on_success()  # Llama a la función para abrir la ventana principal
+            self.root1.destroy()  # Cierra la ventana de login
+        else:
+            messagebox.showerror("Error", "Usuario o contraseña incorrectos")
+
 # Vista: Interfaz gráfica
 class ProductoVista:
     def __init__(self, root, controlador):
@@ -942,7 +979,7 @@ class ProductoVista:
         self.compatibilidad_frame = Frame(self.tab_registro, bg="beige")
         self.compatibilidad_frame.pack(fill="x", padx=10)
 
-    
+
     def cargar_categoria_combobox_v2(self):
         categorias = self.controlador.obtener_categorias()  # Este método debe devolver una lista de tuplas (id_marca, nombre)
         if categorias:
@@ -1160,7 +1197,7 @@ class ProductoVista:
         # Treeview
         self.resultados_tree_ubicacion = ttk.Treeview(
             tree_frame_ubicacion,
-            columns=("Código", "Marca", "Modelo", "Nombre", "Descripción", "Cilindrada", "Año 1", "Año 2", "Cantidad Total"),
+            columns=("Código", "Marca", "Modelo", "Categoria", "Nombre", "Descripción", "Cilindrada", "Año", "Cantidad Total"),
             show="headings",
             xscrollcommand=x_scroll.set,
             yscrollcommand=y_scroll.set
@@ -1169,13 +1206,19 @@ class ProductoVista:
 
         # Configurar encabezados
         encabezados = [
-            "Código Producto", "Marca", "Modelo", "Nombre", "Descripción", 
-            "Cilindrada", "Año 1", "Año 2", "Cantidad Total"
+            "Código Producto", "Marca", "Modelo", "Categoria", "Nombre", "Descripción", 
+            "Cilindrada", "Año", "Cantidad Total"
         ]
+        i = 0
         for col, texto in zip(self.resultados_tree_ubicacion["columns"], encabezados):
-            self.resultados_tree_ubicacion.heading(col, text=texto)
-            self.resultados_tree_ubicacion.column(col, minwidth=100, width=120, stretch=True)
-
+            if i == 4:
+                self.resultados_tree_ubicacion.heading(col, text=texto)
+                self.resultados_tree_ubicacion.column(col, minwidth=100, width=250, stretch=True)
+            else:
+                self.resultados_tree_ubicacion.heading(col, text=texto)
+                self.resultados_tree_ubicacion.column(col, minwidth=100, width=120, stretch=True)
+            i += 1
+        
         # Configurar scrollbars
         x_scroll.config(command=self.resultados_tree_ubicacion.xview)
         y_scroll.config(command=self.resultados_tree_ubicacion.yview)
@@ -1196,8 +1239,24 @@ class ProductoVista:
         for item in self.resultados_tree_ubicacion.get_children():
             self.resultados_tree_ubicacion.delete(item)
         for row in resultados:
-    # Reemplaza valores nulos con 'No disponible'
+
             row = [value if value is not None else "No disponible" for value in row]
+            # Combinar cp.año0 y cp.año1 en un solo valor
+            if row[7] == row[8]:
+                row[7] = row[7]
+            elif row[7] != "No disponible" and row[8] != "No disponible":
+                row[7] = f"{row[7]}-{row[8]}"  # Formato "2015-2020"
+            elif row[7] != "No disponible":
+                row[7] = str(row[7])  # Si solo está año0
+            elif row[8] != "No disponible":
+                row[7] = str(row[8])  # Si solo está año1
+            else:
+                row[7] = "No disponible"  # Ambos están vacíos
+            
+            # Elimina cp.año1 del resultado
+            row[8] = row[9]
+            row[9] = row[10]
+            row[10] = row[11]
             self.resultados_tree_ubicacion.insert("", "end", values=row)
 
 
@@ -1211,7 +1270,7 @@ class ProductoVista:
         id_producto = producto[9]
         
         ubicacion_window = Toplevel(self.root, bg="beige")
-        ubicacion_window.title(f"Asignar Ubicación - {producto[3]}")
+        ubicacion_window.title(f"Asignar Ubicación - {producto[4]}")
         ubicacion_window.geometry("400x300")
 
         ubicacion_window.resizable(False, False)
@@ -1280,7 +1339,7 @@ class ProductoVista:
             id_compatibilidad_list = []
 
             editar_window = Toplevel(self.root, bg="beige")
-            editar_window.title(f"Editar Producto - {producto[3]}")
+            editar_window.title(f"Editar Producto - {producto[4]}")
             editar_window.geometry("800x600")
             #editar_window.resizable(False, False)
             editar_window.attributes("-fullscreen", False)
@@ -1319,12 +1378,12 @@ class ProductoVista:
 
             ttk.Label(producto_frame, text="Producto:", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
             producto1_entry = ttk.Entry(producto_frame, width=75)
-            producto1_entry.insert(0, producto[3])
+            producto1_entry.insert(0, producto[4])
             producto1_entry.grid(row=0, column=1, padx=5, pady=5)
 
             ttk.Label(producto_frame, text="Descripción:", font=("Arial", 10, "bold")).grid(row=1, column=0, padx=5, pady=5, sticky="w")
             descripcion1_entry = ttk.Entry(producto_frame, width=75)
-            descripcion1_entry.insert(0, producto[4])
+            descripcion1_entry.insert(0, producto[5])
             descripcion1_entry.grid(row=1, column=1, padx=5, pady=5)
 
             ttk.Label(producto_frame, text="Código Producto:", font=("Arial", 10, "bold")).grid(row=2, column=0, padx=5, pady=5, sticky="w")
@@ -1334,15 +1393,22 @@ class ProductoVista:
 
             precios_frame = Frame(contenidoa_frame, bg="beige")
             precios_frame.pack(fill="x", padx=10, pady=10)
+            monto = int(float(str(producto[10]).replace(',', '.')))
 
+            # Formatear el número con puntos cada 3 dígitos y agregar el símbolo $
+            precio = f"${monto:,.0f}".replace(',', '.')
+
+            monto1 = int(float(str(producto[12]).replace(',', '.')))
+
+            costo = f"${monto1:,.0f}".replace(',', '.')
             ttk.Label(precios_frame, text="Precio Cliente:", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
             precio1_entry = ttk.Entry(precios_frame)
-            precio1_entry.insert(0, producto[10])
+            precio1_entry.insert(0, precio)
             precio1_entry.grid(row=0, column=1, padx=5, pady=5)
 
             ttk.Label(precios_frame, text="Costo Empresa:", font=("Arial", 10, "bold")).grid(row=1, column=0, padx=5, pady=5, sticky="w")
             costo1_entry = ttk.Entry(precios_frame)
-            costo1_entry.insert(0, producto[11])
+            costo1_entry.insert(0, costo)
             costo1_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
             dimensiones_frame = Frame(contenidoa_frame, bg="beige")
@@ -1350,17 +1416,17 @@ class ProductoVista:
 
             ttk.Label(dimensiones_frame, text="Largo (cm):", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
             largo1_entry = ttk.Entry(dimensiones_frame)
-            largo1_entry.insert(0, producto[12])
+            largo1_entry.insert(0, producto[13])
             largo1_entry.grid(row=0, column=1, padx=5, pady=5)
 
             ttk.Label(dimensiones_frame, text="Ancho (cm):", font=("Arial", 10, "bold")).grid(row=1, column=0, padx=5, pady=5, sticky="w")
             ancho1_entry = ttk.Entry(dimensiones_frame)
-            ancho1_entry.insert(0, producto[13])
+            ancho1_entry.insert(0, producto[14])
             ancho1_entry.grid(row=1, column=1, padx=5, pady=5)
 
             ttk.Label(dimensiones_frame, text="Altura (cm):", font=("Arial", 10, "bold")).grid(row=2, column=0, padx=5, pady=5, sticky="w")
             altura1_entry = ttk.Entry(dimensiones_frame)
-            altura1_entry.insert(0, producto[14])
+            altura1_entry.insert(0, producto[15])
             altura1_entry.grid(row=2, column=1, padx=5, pady=5)
 
             
@@ -1690,7 +1756,7 @@ class ProductoVista:
                         # Manejo de la cilindrada
                         cilindrada = cilindrada_entry_list[i].get()
                         cilindrada = float(cilindrada) if cilindrada and cilindrada not in ["", None] else None
-
+                        
                         # Manejo de los años
                         try:
                             año1 = int(año_1_entry_list[i].get()) if año_1_entry_list[i].get() not in ["", "No disponible"] else None
@@ -1739,6 +1805,17 @@ class ProductoVista:
                     codigo = codigo1_entry.get()
                     precio = precio1_entry.get()
                     costo = costo1_entry.get()
+
+                    # Función para limpiar y convertir el valor
+                    def convertir_a_float(valor):
+                        # Eliminar el símbolo $ y los puntos
+                        valor_limpio = valor.replace('$', '').replace('.', '')
+                        # Convertir a float
+                        return float(valor_limpio)
+
+                    # Convertir los valores ingresados
+                    precio = convertir_a_float(precio)
+                    costo = convertir_a_float(costo)
                     largo = largo1_entry.get()
                     if largo == "No disponible":
                         largo = None
@@ -1920,10 +1997,15 @@ class ProductoVista:
             "Código Producto", "Marca", "Modelo", "Categoria", "Nombre", "Descripción",
             "Cilindrada", "Año", "Cantidad Total", "Precio", "Costo"
         ]
+        i = 0
         for col, texto in zip(self.resultados_tree["columns"], encabezados):
-            self.resultados_tree.heading(col, text=texto)
-            self.resultados_tree.column(col, minwidth=100, width=120, stretch=True)
-
+            if i == 4:
+                self.resultados_tree.heading(col, text=texto)
+                self.resultados_tree.column(col, minwidth=100, width=250)
+            else:
+                self.resultados_tree.heading(col, text=texto)
+                self.resultados_tree.column(col, minwidth=100, width=120)
+            i += 1
         self.resultados_tree.pack(fill="both", expand=True)
 
         # Configurar scrollbars
@@ -1945,14 +2027,14 @@ class ProductoVista:
         for row in resultados:
             row = [value if value is not None else "No disponible" for value in row]
             # Combinar cp.año0 y cp.año1 en un solo valor
-            if row[7] != "No disponible" and row[8] != "No disponible":
+            if row[7] == row[8]:
+                row[7] = row[7]
+            elif row[7] != "No disponible" and row[8] != "No disponible":
                 row[7] = f"{row[7]}-{row[8]}"  # Formato "2015-2020"
-            elif row[8] != "No disponible":
+            elif row[7] != "No disponible":
                 row[7] = str(row[7])  # Si solo está año0
             elif row[8] != "No disponible":
                 row[7] = str(row[8])  # Si solo está año1
-            elif row[7] == row[8]:
-                row[7] = row[7]
             else:
                 row[7] = "No disponible"  # Ambos están vacíos
             
@@ -1960,6 +2042,15 @@ class ProductoVista:
             row[8] = row[9]
             row[9] = row[10]
             row[10] = row[11]
+            # Convertir a número entero (quitando la parte decimal si no la necesitas)
+            monto = int(float(str(row[9]).replace(',', '.')))
+
+            # Formatear el número con puntos cada 3 dígitos y agregar el símbolo $
+            row[9] = f"${monto:,.0f}".replace(',', '.')
+
+            monto = int(float(str(row[10]).replace(',', '.')))
+
+            row[10] = f"${monto:,.0f}".replace(',', '.')
             self.resultados_tree.insert("", "end", values=row)
 
     def ver_detalles_producto(self, event):
@@ -2046,10 +2137,15 @@ class ProductoVista:
             "Código Producto","Marca", "Modelo", "Categoria", "Nombre", "Descripción",
             "Cilindrada", "Año", "Cantidad Total", "Precio", "Costo"
         ]
+        i = 0
         for col, texto in zip(self.resultados_marca1_tree["columns"], encabezados):
-            self.resultados_marca1_tree.heading(col, text=texto)
-            self.resultados_marca1_tree.column(col, minwidth=100, width=120, stretch=True)
-
+            if i == 4:
+                self.resultados_marca1_tree.heading(col, text=texto)
+                self.resultados_marca1_tree.column(col, minwidth=100, width=290, stretch=True)
+            else:
+                self.resultados_marca1_tree.heading(col, text=texto)
+                self.resultados_marca1_tree.column(col, minwidth=100, width=120, stretch=True)
+            i += 1
         # Configurar scrollbars
         x_scroll.config(command=self.resultados_marca1_tree.xview)
         y_scroll.config(command=self.resultados_marca1_tree.yview)
@@ -2097,14 +2193,14 @@ class ProductoVista:
         for row in resultados:
             row = [value if value is not None else "No disponible" for value in row]
             # Combinar cp.año0 y cp.año1 en un solo valor
-            if row[7] != "No disponible" and row[8] != "No disponible":
+            if row[7] == row[8]:
+                row[7] = row[7]
+            elif row[7] != "No disponible" and row[8] != "No disponible":
                 row[7] = f"{row[7]}-{row[8]}"  # Formato "2015-2020"
-            elif row[8] != "No disponible":
+            elif row[7] != "No disponible":
                 row[7] = str(row[7])  # Si solo está año0
             elif row[8] != "No disponible":
                 row[7] = str(row[8])  # Si solo está año1
-            elif row[7] == row[8]:
-                row[7] = row[7]
             else:
                 row[7] = "No disponible"  # Ambos están vacíos
             
@@ -2112,7 +2208,15 @@ class ProductoVista:
             row[8] = row[9]
             row[9] = row[10]
             row[10] = row[11]
+                        # Convertir a número entero (quitando la parte decimal si no la necesitas)
+            monto = int(float(str(row[9]).replace(',', '.')))
 
+            # Formatear el número con puntos cada 3 dígitos y agregar el símbolo $
+            row[9] = f"${monto:,.0f}".replace(',', '.')
+
+            monto = int(float(str(row[10]).replace(',', '.')))
+
+            row[10] = f"${monto:,.0f}".replace(',', '.')
             # Inserta la fila modificada en el Treeview
             self.resultados_marca1_tree.insert("", "end", values=row)
     def cargar_categoria_combobox(self):
@@ -2235,8 +2339,12 @@ class ProductoVista:
         
         if detalles[0][15] == detalles[0][16]:
             año = f"{detalles[0][15]}"
-        elif detalles[0][15]:
+        elif detalles[0][15] and detalles[0][16]:
             año = f"{detalles[0][15]} - {detalles[0][16]}"
+        elif detalles[0][15] and not detalles[0][16]:
+            año = f"{detalles[0][15]}"
+        elif detalles[0][16] and not detalles[0][15]:
+            año = f"{detalles[0][16]}"
         else:
             año = "No agregado"
         Label(marca_frame, text="Año:", font=("Arial", 10, "bold"), bg="beige").grid(row=3, column=0, sticky="w")
@@ -2263,11 +2371,22 @@ class ProductoVista:
         # Precios
         precios_frame = Frame(contenedor, bg="beige")
         precios_frame.pack(fill="x", padx=10, pady=10)
+
+        # Convertir a número entero (quitando la parte decimal si no la necesitas)
+        monto = int(float(str(detalles[0][7]).replace(',', '.')))
+
+        # Formatear el número con puntos cada 3 dígitos y agregar el símbolo $
+        precio = f"${monto:,.0f}".replace(',', '.')
+
+        monto = int(float(str(detalles[0][8]).replace(',', '.')))
+
+        costo = f"${monto:,.0f}".replace(',', '.')
+
         Label(precios_frame, text="Precio Cliente:", font=("Arial", 10, "bold"), bg="beige").grid(row=0, column=0, sticky="w")
-        Label(precios_frame, text=f"${detalles[0][7]:.2f}", font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
+        Label(precios_frame, text=precio, font=("Arial", 10), bg="beige").grid(row=0, column=1, sticky="w")
 
         Label(precios_frame, text="Costo Empresa:", font=("Arial", 10, "bold"), bg="beige").grid(row=1, column=0, sticky="w")
-        Label(precios_frame, text=f"${detalles[0][8]:.2f}", font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
+        Label(precios_frame, text=costo, font=("Arial", 10), bg="beige").grid(row=1, column=1, sticky="w")
 
         # Dimensiones
         
@@ -2407,7 +2526,6 @@ class ProductoVista:
                 self.buscar_producto_marca()
             except Exception:
                 None
-
             try:
                 self.buscar_product()
             except Exception:
@@ -2673,7 +2791,8 @@ class ProductoVista:
         modelo_seleccionado = self.modelo_combobox_ver2.get()
         id_modelo = int(self.modelos_diccionario.get(modelo_seleccionado))
         modelo = ProductoModelo()
-        modelo.cursor.execute("""update modelo set nombre=%s where id_modelo=%s""", ("No disponible", id_modelo,))
+        
+        modelo.cursor.execute("""delete from modelo where id_modelo=%s""", (id_modelo,))
         modelo.conn.commit()
         self.ver_modelo_window.destroy()
 
@@ -2752,7 +2871,7 @@ class ProductoVista:
         self.carro_treeview.heading("cantidad", text="Cantidad")
         self.carro_treeview.heading("precio_unitario", text="Precio Unitario")
         self.carro_treeview.heading("precio_total", text="Total Producto")
-
+        
         # Entrada para seleccionar medio de pago
         ttk.Label(self.tab_carro, text="Medio de Pago:").grid(row=1, column=0, padx=5, pady=5)
         self.medio_pago_combobox = ttk.Combobox(self.tab_carro, state="readonly")
@@ -2826,6 +2945,7 @@ class ProductoVista:
 
         # Si no existe, agregar un nuevo producto al carrito
         precio_total = precio_unitario * cantidad
+        
         self.carrito.append({
             "codigo": producto[0],
             "marca": producto[2],
@@ -2853,17 +2973,30 @@ class ProductoVista:
 
         # Insertar productos en la tabla
         for producto in self.carrito:
+            monto = int(float(str(producto['precio_unitario']).replace(',', '.')))
+
+        # Formatear el número con puntos cada 3 dígitos y agregar el símbolo $
+            precio_unitario = f"${monto:,.0f}".replace(',', '.')
+
+            monto = int(float(str(producto['precio_total']).replace(',', '.')))
+
+        # Formatear el número con puntos cada 3 dígitos y agregar el símbolo $
+            precio_total = f"${monto:,.0f}".replace(',', '.')
+
             self.carro_treeview.insert(
                 "", "end",
                 values=(
                     producto["codigo"], producto["marca"], producto["modelo"],
                     producto["nombre"], producto["cantidad"],
-                    f"${producto['precio_unitario']:.2f}", f"${producto['precio_total']:.2f}"
+                    precio_unitario, precio_total
                 )
             )
+        monto = int(float(str(self.total_final).replace(',', '.')))
 
+        # Formatear el número con puntos cada 3 dígitos y agregar el símbolo $
+        total = f"${monto:,.0f}".replace(',', '.')
         # Actualizar total final
-        self.total_label.config(text=f"Total Final: ${self.total_final:.2f}")
+        self.total_label.config(text=f"Total Final: {total}")
     def guardar_carro(self):
         """Guarda el carrito en la base de datos."""
         medio_pago_seleccionado = self.medio_pago_combobox.get()
@@ -2902,7 +3035,7 @@ class ProductoVista:
             producto = self.carro_treeview.item(selected_item, "values")
             codigo_producto = str(producto[0])  # Asegurar que sea cadena
             cantidad = int(producto[4])         # Convertir cantidad a entero
-            precio_total = float(str(producto[6]).replace("$", "").replace(",", ""))  # Limpiar y convertir precio a flotante
+            precio_total = float(str(producto[6]).replace("$", "").replace(".", ""))  # Limpiar y convertir precio a flotante
         except (IndexError, ValueError):
             messagebox.showerror("Error", "Los datos del producto seleccionado son inválidos.")
             return
@@ -3026,20 +3159,20 @@ class ProductoVista:
 
 
         # Total del día
-        self.total_dia_label = ttk.Label(tree_frame_detalle_diario, text="Total Día: $0.00", font=("Arial", 12, "bold"))
+        self.total_dia_label = ttk.Label(tree_frame_detalle_diario, text="Total Día: $0", font=("Arial", 12, "bold"))
         self.total_dia_label.grid(row=6, column=0, padx=10, pady=10, sticky="w")
 
         # Detalles por medio de pago
-        self.total_efectivo_label = ttk.Label(tree_frame_detalle_diario, text="Total Efectivo: $0.00", font=("Arial", 12, "bold"))
+        self.total_efectivo_label = ttk.Label(tree_frame_detalle_diario, text="Total Efectivo: $0", font=("Arial", 12, "bold"))
         self.total_efectivo_label.grid(row=2, column=0, padx=10, pady=10, sticky="w")
 
-        self.total_debito_label = ttk.Label(tree_frame_detalle_diario, text="Total Débito: $0.00", font=("Arial", 12, "bold"))
+        self.total_debito_label = ttk.Label(tree_frame_detalle_diario, text="Total Débito: $0", font=("Arial", 12, "bold"))
         self.total_debito_label.grid(row=3, column=0, padx=10, pady=10, sticky="w")
 
-        self.total_credito_label = ttk.Label(tree_frame_detalle_diario, text="Total Crédito: $0.00", font=("Arial", 12, "bold"))
+        self.total_credito_label = ttk.Label(tree_frame_detalle_diario, text="Total Crédito: $0", font=("Arial", 12, "bold"))
         self.total_credito_label.grid(row=4, column=0, padx=10, pady=10, sticky="w")
 
-        self.total_transferencia_label = ttk.Label(tree_frame_detalle_diario, text="Total Tansferencia: $0.00", font=("Arial", 12, "bold"))
+        self.total_transferencia_label = ttk.Label(tree_frame_detalle_diario, text="Total Tansferencia: $0", font=("Arial", 12, "bold"))
         self.total_transferencia_label.grid(row=5, column=0, padx=10, pady=10, sticky="w")    
 
         # Botón para cerrar la caja
@@ -3072,14 +3205,18 @@ class ProductoVista:
             usuario = venta[0]
             productos_vendidos = venta[1] if venta[1] is not None else 0
             cantidad_ventas = venta[2] if venta[2] is not None else 0
-            monto_total = venta[3] if venta[3] is not None else 0.0
+            monto = int(float(str(venta[3] if venta[3] is not None else 0).replace(',', '.')))
+
+        # Formatear el número con puntos cada 3 dígitos y agregar el símbolo $
+            monto_total1 = f"${monto:,.0f}".replace(',', '.')
+            monto_total1 = monto_total1 if monto_total1 is not None else 0
             if usuario not in usuario_totales:
                 usuario_totales[usuario] = {
                     'cantidad_productos': 0,
                     'cantidad_ventas': 0,
-                    'total_ventas': 0.0
+                    'total_ventas': 0
                 }
-            
+            monto_total=venta[3] if venta[3] is not None else 0
             usuario_totales[usuario]['cantidad_productos'] += productos_vendidos
             usuario_totales[usuario]['cantidad_ventas'] += cantidad_ventas
             usuario_totales[usuario]['total_ventas'] += monto_total
@@ -3097,19 +3234,29 @@ class ProductoVista:
             else:
                 vendedor = usuario
                 self.ventas_treeview.insert(
-                    "", "end", values=(vendedor, productos_vendidos, cantidad_ventas, f"${monto_total:.2f}")
+                    "", "end", values=(vendedor, productos_vendidos, cantidad_ventas, monto_total1)
                 )
         
         # Si el Total General no está presente, sumar todos los totales conocidos
         if total_dia == 0:
             total_dia = total_efectivo + total_debito + total_credito + total_transferencia
+        monto = int(float(str(total_dia).replace(',', '.')))
+        total_dia = f"${monto:,.0f}".replace(',', '.')
+        monto = int(float(str(total_efectivo).replace(',', '.')))
+        total_efectivo = f"${monto:,.0f}".replace(',', '.')
+        monto = int(float(str(total_debito).replace(',', '.')))
+        total_debito = f"${monto:,.0f}".replace(',', '.')
+        monto = int(float(str(total_credito).replace(',', '.')))
+        total_credito = f"${monto:,.0f}".replace(',', '.')
+        monto = int(float(str(total_transferencia).replace(',', '.')))
+        total_transferencia = f"${monto:,.0f}".replace(',', '.')
 
         # Mostrar totales
-        self.total_dia_label.config(text=f"Total Día: ${total_dia:.2f}")
-        self.total_efectivo_label.config(text=f"Total Efectivo: ${total_efectivo:.2f}")
-        self.total_debito_label.config(text=f"Total Débito: ${total_debito:.2f}")
-        self.total_credito_label.config(text=f"Total Crédito: ${total_credito:.2f}")
-        self.total_transferencia_label.config(text=f"Total Transferencia: ${total_transferencia:.2f}")
+        self.total_dia_label.config(text=f"Total Día: {total_dia}")
+        self.total_efectivo_label.config(text=f"Total Efectivo: {total_efectivo}")
+        self.total_debito_label.config(text=f"Total Débito: {total_debito}")
+        self.total_credito_label.config(text=f"Total Crédito: {total_credito}")
+        self.total_transferencia_label.config(text=f"Total Transferencia: {total_transferencia}")
         
         self.usuario_totales = usuario_totales
 
